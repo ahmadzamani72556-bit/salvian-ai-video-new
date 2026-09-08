@@ -1,5 +1,6 @@
 import './globals.css';
 import './studio.css';
+import './logo.css';
 
 export const metadata = {
   title: 'SALVIAN AI VIDEO',
