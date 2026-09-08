@@ -88,27 +88,72 @@ export function createProjectId(title: string) {
   return `${base}-${suffix}`;
 }
 
+function buildDefaultAudio(value: Partial<VideoProject>): AudioConfig {
+  return {
+    voice: value.voice || "Narator Natural",
+    music: value.music || "Ambient Cinematic",
+    language: value.language || "Indonesia",
+    voiceVolume: 100,
+    musicVolume: 35,
+    fadeIn: true,
+    fadeOut: true,
+  };
+}
+
+function buildDefaultVisual(value: Partial<VideoProject>): VisualConfig {
+  return {
+    style: value.style || "Cinematic",
+    cameraMotion: "Smart",
+    lighting: "Natural",
+    transition: "Smooth",
+    assetMode: "AI Generated",
+  };
+}
+
+function buildDefaultSubtitle(value: Partial<VideoProject>): SubtitleConfig {
+  return {
+    enabled: value.autoSubtitle !== false,
+    language: value.language || "Indonesia",
+    style: "Modern",
+    position: "Bottom",
+    size: "Medium",
+  };
+}
+
+function buildDefaultTimeline(value: Partial<VideoProject>): TimelineConfig {
+  return {
+    pacing: value.smartPacing === false ? "Manual" : "Smart",
+    transitionDuration: 0.5,
+    introDuration: 2,
+    outroDuration: 2,
+  };
+}
+
 function normalizeProject(value: Partial<VideoProject>): VideoProject | null {
   if (!value.title) return null;
+  const audio = value.audio || buildDefaultAudio(value);
+  const visual = value.visual || buildDefaultVisual(value);
+  const subtitle = value.subtitle || buildDefaultSubtitle(value);
+  const timeline = value.timeline || buildDefaultTimeline(value);
   return {
     id: value.id || makeProjectId(value.title),
     title: value.title,
     status: value.status || "Draft",
     duration: Number(value.duration) || 7,
     topic: value.topic,
-    style: value.style,
-    ratio: value.ratio,
-    language: value.language,
-    voice: value.voice,
-    music: value.music,
+    style: value.style || visual.style,
+    ratio: value.ratio || "16:9",
+    language: value.language || audio.language,
+    voice: value.voice || audio.voice,
+    music: value.music || audio.music,
     script: value.script,
-    autoStoryboard: value.autoStoryboard,
-    autoSubtitle: value.autoSubtitle,
-    smartPacing: value.smartPacing,
-    audio: value.audio,
-    visual: value.visual,
-    subtitle: value.subtitle,
-    timeline: value.timeline,
+    autoStoryboard: value.autoStoryboard !== false,
+    autoSubtitle: value.autoSubtitle !== false,
+    smartPacing: value.smartPacing !== false,
+    audio,
+    visual,
+    subtitle,
+    timeline,
     scenes: Array.isArray(value.scenes) ? value.scenes : [],
     updatedAt: value.updatedAt || new Date().toISOString(),
   };
