@@ -4,8 +4,9 @@ import "../studio.css";
 import "./render.css";
 
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Film, Gauge, HardDrive, MonitorPlay, Play, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, CheckCircle2, Film, Gauge, HardDrive, MonitorPlay, Play, Save, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { makeProjectId, readActiveProject, readRenderSettings, saveRenderSettings } from "../../lib/project-store";
 
 const resolutions = ["720p", "1080p", "4K"];
 const fpsOptions = ["24 FPS", "30 FPS", "60 FPS"];
@@ -18,21 +19,41 @@ export default function RenderPage() {
   const [format, setFormat] = useState("MP4");
   const [status, setStatus] = useState("READY");
   const [project, setProject] = useState("Project Video");
+  const [projectId, setProjectId] = useState("");
   const [duration, setDuration] = useState("7 menit");
+  const [saved, setSaved] = useState(false);
   const credits = resolution === "4K" ? 45 : resolution === "1080p" ? 30 : 20;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("project");
-    const raw = localStorage.getItem("salvian-video-active-project");
-    let active: { title?: string; duration?: string } | null = null;
-    try { if (raw) active = JSON.parse(raw); } catch {}
-    setProject(requested || active?.title || "Project Video");
-    setDuration(active?.duration || "7 menit");
+    const requestedId = params.get("projectId");
+    const active = readActiveProject();
+    const stored = readRenderSettings();
+    const title = requested || active?.title || stored?.projectTitle || "Project Video";
+    const id = requestedId || active?.id || stored?.projectId || makeProjectId(title);
+    setProject(title);
+    setProjectId(id);
+    setDuration(`${active?.duration || 7} menit`);
+    if (stored?.projectId === id) {
+      setResolution(stored.resolution || "1080p");
+      setFps(stored.fps || "30 FPS");
+      setQuality(stored.quality || "High");
+      setFormat(stored.format || "MP4");
+    }
   }, []);
 
   const workspaceHref = `/workspace?project=${encodeURIComponent(project)}`;
   const studioHref = `/create?project=${encodeURIComponent(project)}&from=render`;
+
+  function saveSettings() {
+    saveRenderSettings({ projectId: projectId || makeProjectId(project), projectTitle: project, resolution, fps, quality, format, updatedAt: new Date().toISOString() });
+    setSaved(true);
+    setStatus("READY TO RENDER");
+    window.setTimeout(() => setSaved(false), 1800);
+  }
+
+  const outputSummary = useMemo(() => `${format} · ${resolution} · ${fps} · ${quality}`, [format, resolution, fps, quality]);
 
   return (
     <main className="render-shell">
@@ -51,7 +72,8 @@ export default function RenderPage() {
             <RenderChoices label="KUALITAS" items={qualities} value={quality} onChange={setQuality}/>
             <div className="render-setting"><label>FORMAT</label><select value={format} onChange={e=>setFormat(e.target.value)}><option>MP4</option><option>WebM</option></select></div>
             <div className="render-summary"><div><span><MonitorPlay size={15}/> Output</span><strong>{format} · {resolution}</strong></div><div><span><Gauge size={15}/> Frame rate</span><strong>{fps}</strong></div><div><span><HardDrive size={15}/> Quality</span><strong>{quality}</strong></div><div><span><Sparkles size={15}/> Estimasi kredit</span><strong>{credits} kredit</strong></div></div>
-            <button className="primary render-button" type="button" onClick={()=>setStatus("READY TO RENDER")}><Play size={17}/> Siapkan Render Final</button>
+            <button className="primary render-button" type="button" onClick={saveSettings}><Save size={17}/> {saved ? "Pengaturan Tersimpan" : "Simpan & Siapkan Render"}</button>
+            <div className="workspace-note">Output: <strong>{outputSummary}</strong>. Mesin render/provider akan menerima kontrak project ini pada tahap integrasi engine.</div>
             <Link href={workspaceHref} className="secondary-btn full"><ArrowLeft size={15}/> Kembali ke Workspace</Link>
           </section>
           <aside className="render-preview">
