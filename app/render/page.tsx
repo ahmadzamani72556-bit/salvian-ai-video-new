@@ -1,7 +1,7 @@
+"use client";
+
 import "../studio.css";
 import "./render.css";
-
-"use client";
 
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Film, Gauge, HardDrive, MonitorPlay, Play, Sparkles } from "lucide-react";
