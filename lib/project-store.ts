@@ -6,6 +6,39 @@ export type VideoScene = {
   voice?: string;
 };
 
+export type AudioConfig = {
+  voice: string;
+  music: string;
+  language: string;
+  voiceVolume: number;
+  musicVolume: number;
+  fadeIn: boolean;
+  fadeOut: boolean;
+};
+
+export type VisualConfig = {
+  style: string;
+  cameraMotion: string;
+  lighting: string;
+  transition: string;
+  assetMode: string;
+};
+
+export type SubtitleConfig = {
+  enabled: boolean;
+  language: string;
+  style: string;
+  position: string;
+  size: string;
+};
+
+export type TimelineConfig = {
+  pacing: string;
+  transitionDuration: number;
+  introDuration: number;
+  outroDuration: number;
+};
+
 export type VideoProject = {
   id: string;
   title: string;
@@ -21,6 +54,10 @@ export type VideoProject = {
   autoStoryboard?: boolean;
   autoSubtitle?: boolean;
   smartPacing?: boolean;
+  audio?: AudioConfig;
+  visual?: VisualConfig;
+  subtitle?: SubtitleConfig;
+  timeline?: TimelineConfig;
   scenes: VideoScene[];
   updatedAt: string;
 };
@@ -68,6 +105,10 @@ function normalizeProject(value: Partial<VideoProject>): VideoProject | null {
     autoStoryboard: value.autoStoryboard,
     autoSubtitle: value.autoSubtitle,
     smartPacing: value.smartPacing,
+    audio: value.audio,
+    visual: value.visual,
+    subtitle: value.subtitle,
+    timeline: value.timeline,
     scenes: Array.isArray(value.scenes) ? value.scenes : [],
     updatedAt: value.updatedAt || new Date().toISOString(),
   };
@@ -144,7 +185,6 @@ export function saveActiveProject(project: VideoProject) {
   if (!normalized) return;
   localStorage.setItem(ACTIVE_KEY, JSON.stringify(normalized));
   localStorage.setItem(WORKSPACE_KEY, JSON.stringify(normalized));
-
   const projects = readProjects().filter((item) => item.id !== normalized.id);
   localStorage.setItem(PROJECTS_KEY, JSON.stringify([normalized, ...projects]));
 }
