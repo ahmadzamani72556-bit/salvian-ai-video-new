@@ -6,7 +6,7 @@ import "./render.css";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Film, Gauge, HardDrive, MonitorPlay, Play, Save, Sparkles, Circle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { createProjectId, makeProjectId, readProject, readActiveProject, readRenderSettings, saveRenderSettings, type VideoProject } from "../../lib/project-store";
+import { createProjectId, readProject, readActiveProject, readRenderSettings, saveRenderSettings, type VideoProject } from "../../lib/project-store";
 
 const resolutions = ["720p", "1080p", "4K"];
 const fpsOptions = ["24 FPS", "30 FPS", "60 FPS"];
@@ -36,7 +36,6 @@ export default function RenderPage() {
     const selected = readProject(requestedId || undefined, requested || undefined) || (!requestedId && !requested ? active : null);
     const title = selected?.title || requested || active?.title || "Project Video";
     const id = selected?.id || requestedId || (active?.title === title ? active.id : createProjectId(title));
-    const stored = readRenderSettings(id);
 
     setActiveProject(selected);
     setProject(title);
@@ -44,6 +43,8 @@ export default function RenderPage() {
     setRatio(selected?.ratio || "16:9");
     setDuration(`${selected?.duration || 7} menit`);
     if (selected?.status) setStatus(selected.status === "Siap Render" ? "READY TO RENDER" : "READY");
+
+    const stored = readRenderSettings(id);
     if (stored) {
       setResolution(stored.resolution || "1080p");
       setFps(stored.fps || "30 FPS");
@@ -58,19 +59,22 @@ export default function RenderPage() {
   const readiness = useMemo<ReadinessItem[]>(() => {
     const p = activeProject;
     return [
-      { label: "Konsep / Script", ready: Boolean(p?.topic?.trim()), detail: p?.topic ? "Topik tersimpan" : "Isi konsep di Studio" },
+      { label: "Konsep / Script", ready: Boolean(p?.topic?.trim() || p?.script?.trim()), detail: p?.script?.trim() ? "Naskah tersimpan" : p?.topic ? "Topik tersimpan" : "Isi konsep di Studio" },
       { label: "Storyboard", ready: Boolean(p?.scenes?.length), detail: p?.scenes?.length ? `${p.scenes.length} scene tersimpan` : "Belum ada scene" },
-      { label: "Audio", ready: Boolean(p?.voice || p?.music), detail: p?.voice || p?.music ? "Voice/music terset" : "Belum dikonfigurasi" },
-      { label: "Visual", ready: Boolean(p?.style?.trim()), detail: p?.style ? `${p.style} siap` : "Belum memilih gaya" },
-      { label: "Subtitle", ready: Boolean(p?.language?.trim()), detail: p?.language ? `Bahasa ${p.language}` : "Bahasa belum dipilih" },
+      { label: "Audio", ready: Boolean(p?.audio?.voice || p?.audio?.music || p?.voice || p?.music), detail: p?.audio ? `${p.audio.voice} · ${p.audio.music}` : p?.voice || p?.music ? "Voice/music terset" : "Belum dikonfigurasi" },
+      { label: "Visual", ready: Boolean(p?.visual?.style?.trim() || p?.style?.trim()), detail: p?.visual?.style || p?.style ? `${p.visual?.style || p.style} · ${p.visual?.cameraMotion || "Smart camera"}` : "Belum memilih gaya" },
+      { label: "Subtitle", ready: Boolean(p?.subtitle?.language?.trim() || p?.language?.trim()), detail: p?.subtitle ? `${p.subtitle.enabled ? "Aktif" : "Manual"} · ${p.subtitle.language}` : p?.language ? `Bahasa ${p.language}` : "Bahasa belum dipilih" },
+      { label: "Timeline", ready: Boolean(p?.timeline), detail: p?.timeline ? `${p.timeline.pacing} pacing · transition ${p.timeline.transitionDuration}s` : "Belum disiapkan" },
     ];
   }, [activeProject]);
 
   const readyCount = readiness.filter((item) => item.ready).length;
-  const canPrepare = readyCount >= 3;
+  const canPrepare = readyCount >= 5;
 
   function saveSettings() {
-    saveRenderSettings({ projectId: projectId || createProjectId(project), projectTitle: project, resolution, fps, quality, format, updatedAt: new Date().toISOString() });
+    const id = projectId || createProjectId(project);
+    if (!projectId) setProjectId(id);
+    saveRenderSettings({ projectId: id, projectTitle: project, resolution, fps, quality, format, updatedAt: new Date().toISOString() });
     setSaved(true);
     setStatus(canPrepare ? "READY TO RENDER" : "SETTINGS SAVED");
     window.setTimeout(() => setSaved(false), 1800);
@@ -96,12 +100,12 @@ export default function RenderPage() {
             <div className="render-setting"><label>FORMAT</label><select value={format} onChange={e=>setFormat(e.target.value)}><option>MP4</option><option>WebM</option></select></div>
             <div className="render-summary"><div><span><MonitorPlay size={15}/> Output</span><strong>{format} · {resolution}</strong></div><div><span><Gauge size={15}/> Frame rate</span><strong>{fps}</strong></div><div><span><HardDrive size={15}/> Quality</span><strong>{quality}</strong></div><div><span><Sparkles size={15}/> Estimasi kredit</span><strong>{credits} kredit</strong></div></div>
             <button className="primary render-button" type="button" onClick={saveSettings}><Save size={17}/> {saved ? "Pengaturan Tersimpan" : "Simpan & Siapkan Render"}</button>
-            <div className="workspace-note">Output: <strong>{outputSummary}</strong>. Engine render nantinya menerima kontrak project ini tanpa mengubah alur Studio → Render.</div>
+            <div className="workspace-note">Output: <strong>{outputSummary}</strong>. Konfigurasi Studio, termasuk audio, visual, subtitle, dan timeline, dibaca dari project aktif.</div>
             <Link href={workspaceHref} className="secondary-btn full"><ArrowLeft size={15}/> Kembali ke Workspace</Link>
           </section>
           <aside className="render-preview">
-            <div className="preview-head"><div><div className="eyebrow">FINAL PREVIEW</div><strong>Canvas {ratio}</strong></div><span className="preview-dot">{readyCount}/5 SIAP</span></div>
-            <div className="render-canvas" style={{aspectRatio:ratio.replace(":","/")}}><div className="preview-grid"/><div className="preview-center"><Play size={22}/></div><span>{canPrepare ? "Project memiliki bahan produksi yang cukup untuk disiapkan ke engine." : "Lengkapi minimal konsep, storyboard, dan audio/visual di Studio."}</span></div>
+            <div className="preview-head"><div><div className="eyebrow">FINAL PREVIEW</div><strong>Canvas {ratio}</strong></div><span className="preview-dot">{readyCount}/{readiness.length} SIAP</span></div>
+            <div className="render-canvas" style={{aspectRatio:ratio.replace(":","/")}}><div className="preview-grid"/><div className="preview-center"><Play size={22}/></div><span>{canPrepare ? "Project lengkap untuk diteruskan ke engine render." : "Lengkapi konsep/script, storyboard, audio, visual, subtitle, dan timeline di Studio."}</span></div>
             <div className="render-checklist">
               {readiness.map((item) => <div key={item.label} className={item.ready ? "check-ready" : "check-pending"}>{item.ready ? <CheckCircle2 size={15}/> : <Circle size={15}/>} <span>{item.label}<small>{item.detail}</small></span></div>)}
             </div>
