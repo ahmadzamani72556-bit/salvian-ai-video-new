@@ -12,7 +12,7 @@ const projects = [
 export default function Dashboard() {
   return (
     <main className="dash-shell">
-      <nav className="dash-nav"><Link href="/" className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></Link><div className="user-pill">Creator <span>100 kredit</span></div></nav>
+      <nav className="dash-nav"><Link href="/" className="brand"><img className="brand-logo" src="/salvian-ai-video-logo.svg" alt="Salvian AI Video" /><span>SALVIAN <b>AI VIDEO</b></span></Link><div className="user-pill">Creator <span>100 kredit</span></div></nav>
       <section className="dash-main">
         <div className="dash-head"><div><div className="eyebrow">WORKSPACE CREATOR</div><h1>Selamat datang kembali.</h1><p>Semua proses pembuatan video YouTube Anda ada di satu tempat.</p></div><Link href="/create" className="primary"><Sparkles size={17}/> Buat Video Baru <ArrowRight size={17}/></Link></div>
         <div className="stats"><Stat icon={<WalletCards/>} label="Kredit tersedia" value="100"/><Stat icon={<Clapperboard/>} label="Total project" value="3"/><Stat icon={<FolderOpen/>} label="Video selesai" value="0"/></div>
