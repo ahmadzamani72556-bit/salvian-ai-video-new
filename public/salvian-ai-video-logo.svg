@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Salvian AI Video</title>
+  <desc id="desc">Premium chrome S emblem with play triangle and filmstrip details</desc>
+  <defs>
+    <linearGradient id="chrome" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.22" stop-color="#8b98a8"/>
+      <stop offset="0.48" stop-color="#f7fbff"/>
+      <stop offset="0.72" stop-color="#6c7888"/>
+      <stop offset="1" stop-color="#eaf2fb"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9f0ff"/>
+      <stop offset="0.45" stop-color="#43c9ff"/>
+      <stop offset="1" stop-color="#1475ff"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <circle cx="256" cy="256" r="224" fill="#06101d" stroke="#233b56" stroke-width="12"/>
+  <circle cx="256" cy="256" r="202" fill="none" stroke="url(#blue)" stroke-opacity=".28" stroke-width="5"/>
+  <path d="M344 137c-27-24-61-36-101-36-67 0-112 35-112 87 0 48 33 72 96 87l38 9c29 7 43 17 43 33 0 19-19 31-52 31-39 0-71-13-98-40l-39 46c35 39 79 58 134 58 74 0 123-38 123-97 0-50-32-76-96-92l-37-9c-31-7-45-16-45-31 0-17 17-28 45-28 31 0 57 10 80 30z" fill="url(#chrome)"/>
+  <path d="M179 349l153-93-153-93z" fill="#06101d" stroke="url(#blue)" stroke-width="13" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M198 211l96 45-96 45z" fill="url(#blue)"/>
+  <g fill="url(#blue)">
+    <rect x="100" y="128" width="17" height="42" rx="4"/>
+    <rect x="100" y="342" width="17" height="42" rx="4"/>
+    <rect x="395" y="128" width="17" height="42" rx="4"/>
+    <rect x="395" y="342" width="17" height="42" rx="4"/>
+  </g>
+</svg>
