@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowRight, Check, Clapperboard, Clock3, Sparkles, Wand2 } from 'lucide-react';
 
 const durations = [5, 6, 7, 8];
+const CREATOR_ACCOUNT = 'https://salvian-ai-creator.vercel.app/akun.html?from=video';
 
 export default function Home() {
   const [duration, setDuration] = useState(7);
@@ -14,7 +15,7 @@ export default function Home() {
     <main className="shell">
       <nav className="nav">
         <div className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></div>
-        <div className="nav-links"><a href="#fitur">Fitur</a><a href="#harga">Harga</a><button className="login">Masuk</button><button className="nav-cta">Mulai Gratis</button></div>
+        <div className="nav-links"><a href="#fitur">Fitur</a><a href="#harga">Harga</a><button className="login" onClick={() => window.location.href = CREATOR_ACCOUNT}>Masuk</button><button className="nav-cta" onClick={() => window.location.href = CREATOR_ACCOUNT}>Mulai Gratis</button></div>
       </nav>
 
       <section className="hero">
@@ -41,7 +42,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="harga" className="pricing"><div><div className="section-label">MULAI GRATIS</div><h2>Bangun lebih banyak.<br/><span>Bayar saat berkembang.</span></h2></div><div className="price-card"><small>FREE</small><strong>100</strong><span>kredit awal</span><button>Mulai Membuat <ArrowRight size={17}/></button></div><div className="price-card premium"><small>PREMIUM</small><strong>Lebih banyak</strong><span>untuk creator aktif</span><button>Lihat Paket <ArrowRight size={17}/></button></div></section>
+      <section id="harga" className="pricing"><div><div className="section-label">MULAI GRATIS</div><h2>Bangun lebih banyak.<br/><span>Bayar saat berkembang.</span></h2></div><div className="price-card"><small>FREE</small><strong>100</strong><span>kredit awal</span><button onClick={() => window.location.href = CREATOR_ACCOUNT}>Mulai Membuat <ArrowRight size={17}/></button></div><div className="price-card premium"><small>PREMIUM</small><strong>Lebih banyak</strong><span>untuk creator aktif</span><button onClick={() => window.location.href = CREATOR_ACCOUNT}>Lihat Paket <ArrowRight size={17}/></button></div></section>
 
       <footer><div className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></div><span>© 2026 SALVIAN AI VIDEO</span></footer>
     </main>
