@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import { productionEngine } from "../../../lib/production-engine";
 
 const durations = [5, 6, 7, 8];
+const styles = ["Cinematic", "Documentary", "Realistic", "Anime", "Islamic Elegant"];
+const ratios = ["16:9", "9:16", "1:1"];
+const languages = ["Indonesia", "English", "Malay"];
+const voices = ["Narator Natural", "Narator Deep", "Narator Warm", "Storytelling"];
+const musicOptions = ["Ambient Cinematic", "Emotional Piano", "Documentary", "Minimal", "Tanpa Musik"];
+
+function oneOf(value: unknown, allowed: string[], fallback: string, label: string) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value !== "string" || !allowed.includes(value)) throw new Error(`${label} tidak valid.`);
+  return value;
+}
 
 export async function POST(request: Request) {
   try {
@@ -11,11 +22,11 @@ export async function POST(request: Request) {
     if (!topic) return NextResponse.json({ error: "Topik video wajib diisi." }, { status: 400 });
     if (!durations.includes(duration)) return NextResponse.json({ error: "Durasi tidak valid." }, { status: 400 });
 
-    const style = typeof body.style === "string" ? body.style : "Cinematic";
-    const ratio = typeof body.ratio === "string" ? body.ratio : "16:9";
-    const language = typeof body.language === "string" ? body.language : "Indonesia";
-    const voice = typeof body.voice === "string" ? body.voice : "Narator Natural";
-    const music = typeof body.music === "string" ? body.music : "Ambient Cinematic";
+    const style = oneOf(body.style, styles, "Cinematic", "Gaya visual");
+    const ratio = oneOf(body.ratio, ratios, "16:9", "Rasio");
+    const language = oneOf(body.language, languages, "Indonesia", "Bahasa");
+    const voice = oneOf(body.voice, voices, "Narator Natural", "Voice-over");
+    const music = oneOf(body.music, musicOptions, "Ambient Cinematic", "Musik");
     const autoStoryboard = body.autoStoryboard !== false;
     const autoSubtitle = body.autoSubtitle !== false;
     const smartPacing = body.smartPacing !== false;
@@ -38,7 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, mode: result.mode, creditCost, project: result.project });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Permintaan tidak dapat diproses.";
-    const status = message.includes("Layanan AI") ? 502 : 500;
+    const status = message.includes("Layanan AI") ? 502 : message.endsWith("tidak valid.") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
