@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, LockKeyhole, Mail, Sparkles } from 'lucide-react';
+import { ArrowRight, LockKeyhole, Mail } from 'lucide-react';
 import Link from 'next/link';
 
 const CREATOR_ACCOUNT_URL = 'https://salvian-ai-creator.vercel.app/akun.html?from=video';
@@ -9,7 +9,7 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <div className="auth-card">
-        <div className="brand-mark"><Sparkles size={18}/> SALVIAN AI VIDEO</div>
+        <div className="auth-brand"><img className="auth-logo" src="/salvian-ai-video-logo.svg" alt="Salvian AI Video" /><span>SALVIAN <b>AI VIDEO</b></span></div>
         <h1>Masuk ke akun creator</h1>
         <p className="muted">Akun SALVIAN dikelola terpusat. Masuk melalui SALVIAN AI CREATOR, lalu Anda akan dikembalikan ke SALVIAN AI VIDEO.</p>
         <div style={{display:'grid',gap:12,marginTop:20}}>
