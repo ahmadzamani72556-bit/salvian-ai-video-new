@@ -71,19 +71,38 @@ export function saveActiveProject(project: VideoProject) {
   localStorage.setItem(WORKSPACE_KEY, JSON.stringify(project));
 }
 
-export function saveRenderSettings(settings: RenderSettings) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(RENDER_KEY, JSON.stringify(settings));
-}
-
-export function readRenderSettings(): RenderSettings | null {
-  if (typeof window === "undefined") return null;
+function readRenderMap(): Record<string, RenderSettings> {
+  if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(RENDER_KEY);
-    return raw ? (JSON.parse(raw) as RenderSettings) : null;
-  } catch {
-    return null;
-  }
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      if (parsed.projectId && parsed.projectTitle) {
+        const legacy = parsed as RenderSettings;
+        return { [legacy.projectId]: legacy };
+      }
+      return parsed as Record<string, RenderSettings>;
+    }
+  } catch {}
+  return {};
+}
+
+export function saveRenderSettings(settings: RenderSettings) {
+  if (typeof window === "undefined") return;
+  const map = readRenderMap();
+  map[settings.projectId] = settings;
+  localStorage.setItem(RENDER_KEY, JSON.stringify(map));
+}
+
+export function readRenderSettings(projectId?: string): RenderSettings | null {
+  if (typeof window === "undefined") return null;
+  const map = readRenderMap();
+  if (projectId && map[projectId]) return map[projectId];
+  const active = readActiveProject();
+  if (active?.id && map[active.id]) return map[active.id];
+  const first = Object.values(map)[0];
+  return first || null;
 }
 
 export function clearProjectState() {
