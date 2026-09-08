@@ -6,7 +6,7 @@ import "./render.css";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Film, Gauge, HardDrive, MonitorPlay, Play, Save, Sparkles, Circle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { makeProjectId, readActiveProject, readRenderSettings, saveRenderSettings, type VideoProject } from "../../lib/project-store";
+import { createProjectId, makeProjectId, readProject, readActiveProject, readRenderSettings, saveRenderSettings, type VideoProject } from "../../lib/project-store";
 
 const resolutions = ["720p", "1080p", "4K"];
 const fpsOptions = ["24 FPS", "30 FPS", "60 FPS"];
@@ -22,6 +22,7 @@ export default function RenderPage() {
   const [status, setStatus] = useState("READY");
   const [project, setProject] = useState("Project Video");
   const [projectId, setProjectId] = useState("");
+  const [ratio, setRatio] = useState("16:9");
   const [duration, setDuration] = useState("7 menit");
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
   const [saved, setSaved] = useState(false);
@@ -32,13 +33,17 @@ export default function RenderPage() {
     const requested = params.get("project");
     const requestedId = params.get("projectId");
     const active = readActiveProject();
-    const title = requested || active?.title || "Project Video";
-    const id = requestedId || (active?.title === title ? active.id : makeProjectId(title));
+    const selected = readProject(requestedId || undefined, requested || undefined) || (!requestedId && !requested ? active : null);
+    const title = selected?.title || requested || active?.title || "Project Video";
+    const id = selected?.id || requestedId || (active?.title === title ? active.id : createProjectId(title));
     const stored = readRenderSettings(id);
-    setActiveProject(active?.title === title ? active : null);
+
+    setActiveProject(selected);
     setProject(title);
     setProjectId(id);
-    setDuration(`${active?.title === title ? active.duration || 7 : 7} menit`);
+    setRatio(selected?.ratio || "16:9");
+    setDuration(`${selected?.duration || 7} menit`);
+    if (selected?.status) setStatus(selected.status === "Siap Render" ? "READY TO RENDER" : "READY");
     if (stored) {
       setResolution(stored.resolution || "1080p");
       setFps(stored.fps || "30 FPS");
@@ -47,8 +52,8 @@ export default function RenderPage() {
     }
   }, []);
 
-  const workspaceHref = `/workspace?project=${encodeURIComponent(project)}`;
-  const studioHref = `/create?project=${encodeURIComponent(project)}&from=render`;
+  const workspaceHref = `/workspace?project=${encodeURIComponent(project)}&projectId=${encodeURIComponent(projectId)}`;
+  const studioHref = `/create?project=${encodeURIComponent(project)}&projectId=${encodeURIComponent(projectId)}&from=render`;
 
   const readiness = useMemo<ReadinessItem[]>(() => {
     const p = activeProject;
@@ -65,7 +70,7 @@ export default function RenderPage() {
   const canPrepare = readyCount >= 3;
 
   function saveSettings() {
-    saveRenderSettings({ projectId: projectId || makeProjectId(project), projectTitle: project, resolution, fps, quality, format, updatedAt: new Date().toISOString() });
+    saveRenderSettings({ projectId: projectId || createProjectId(project), projectTitle: project, resolution, fps, quality, format, updatedAt: new Date().toISOString() });
     setSaved(true);
     setStatus(canPrepare ? "READY TO RENDER" : "SETTINGS SAVED");
     window.setTimeout(() => setSaved(false), 1800);
@@ -95,8 +100,8 @@ export default function RenderPage() {
             <Link href={workspaceHref} className="secondary-btn full"><ArrowLeft size={15}/> Kembali ke Workspace</Link>
           </section>
           <aside className="render-preview">
-            <div className="preview-head"><div><div className="eyebrow">FINAL PREVIEW</div><strong>Canvas 16:9</strong></div><span className="preview-dot">{readyCount}/5 SIAP</span></div>
-            <div className="render-canvas"><div className="preview-grid"/><div className="preview-center"><Play size={22}/></div><span>{canPrepare ? "Project memiliki bahan produksi yang cukup untuk disiapkan ke engine." : "Lengkapi minimal konsep, storyboard, dan audio/visual di Studio."}</span></div>
+            <div className="preview-head"><div><div className="eyebrow">FINAL PREVIEW</div><strong>Canvas {ratio}</strong></div><span className="preview-dot">{readyCount}/5 SIAP</span></div>
+            <div className="render-canvas" style={{aspectRatio:ratio.replace(":","/")}}><div className="preview-grid"/><div className="preview-center"><Play size={22}/></div><span>{canPrepare ? "Project memiliki bahan produksi yang cukup untuk disiapkan ke engine." : "Lengkapi minimal konsep, storyboard, dan audio/visual di Studio."}</span></div>
             <div className="render-checklist">
               {readiness.map((item) => <div key={item.label} className={item.ready ? "check-ready" : "check-pending"}>{item.ready ? <CheckCircle2 size={15}/> : <Circle size={15}/>} <span>{item.label}<small>{item.detail}</small></span></div>)}
             </div>
