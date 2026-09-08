@@ -8,10 +8,25 @@ import { readActiveProject, readProjects, type VideoProject } from "../../lib/pr
 export default function Dashboard() {
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
   const [projects, setProjects] = useState<VideoProject[]>([]);
+  const [credits, setCredits] = useState<string>("—");
 
   useEffect(() => {
     setActiveProject(readActiveProject());
     setProjects(readProjects());
+    try {
+      const cached = localStorage.getItem("salvian-video-account-profile");
+      if (cached) setCredits(Number(JSON.parse(cached)?.credits || 0).toLocaleString("id-ID"));
+    } catch {}
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== "https://salvian-ai-creator.vercel.app") return;
+      if (event.data?.type !== "SALVIAN_ACCOUNT_PROFILE") return;
+      const p = event.data.profile;
+      if (!p) return;
+      setCredits(Number(p.credits || 0).toLocaleString("id-ID"));
+      try { localStorage.setItem("salvian-video-account-profile", JSON.stringify(p)); } catch {}
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, []);
 
   const recentProjects = useMemo(() => projects.slice(0, 5), [projects]);
@@ -22,7 +37,7 @@ export default function Dashboard() {
     <main className="dash-shell">
       <nav className="dash-nav">
         <Link href="/" className="brand"><img className="brand-logo" src="/salvian-ai-video-logo.svg" alt="Salvian AI Video" /><span>SALVIAN <b>AI VIDEO</b></span></Link>
-        <div className="user-pill">Saldo Creator <span>Terhubung</span></div>
+        <Link href="/account" className="user-pill">Saldo Creator <span>{credits === "—" ? "Kelola" : `${credits} kredit`}</span></Link>
       </nav>
       <section className="dash-main">
         <div className="dash-head">
@@ -30,7 +45,7 @@ export default function Dashboard() {
           <Link href="/create" className="primary"><Sparkles size={17}/> Buat Video Baru <ArrowRight size={17}/></Link>
         </div>
         <div className="stats">
-          <Stat icon={<WalletCards/>} label="Saldo" value="Creator" />
+          <Stat icon={<WalletCards/>} label="Saldo Creator" value={credits} />
           <Stat icon={<Clapperboard/>} label="Total project" value={String(projects.length)} />
           <Stat icon={<FolderOpen/>} label="Video selesai" value={String(completed)} />
         </div>
@@ -39,9 +54,7 @@ export default function Dashboard() {
           <div className="project-list">
             {recentProjects.map((p) => (
               <Link className="project" href={`/workspace?project=${encodeURIComponent(p.title)}&projectId=${encodeURIComponent(p.id)}`} key={p.id}>
-                <div className="project-icon"><Clapperboard size={18}/></div>
-                <div className="project-info"><strong>{p.title}</strong><span>{p.duration} menit · {p.scenes.length} scene{activeProject?.id === p.id ? " · Aktif sekarang" : ""}</span></div>
-                <span className="status">{p.status}</span><ArrowRight size={17} className="row-arrow"/>
+                <div className="project-icon"><Clapperboard size={18}/></div><div className="project-info"><strong>{p.title}</strong><span>{p.duration} menit · {p.scenes.length} scene{activeProject?.id === p.id ? " · Aktif sekarang" : ""}</span></div><span className="status">{p.status}</span><ArrowRight size={17} className="row-arrow"/>
               </Link>
             ))}
             {!recentProjects.length && <div className="empty-state"><Clapperboard size={26}/><strong>Belum ada project.</strong><span>Project yang dibuat dari Studio akan muncul di sini.</span><Link href="/create" className="primary">Buat Video Baru <ArrowRight size={16}/></Link></div>}
@@ -59,6 +72,4 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="stat"><div className="stat-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></div>;
-}
+function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) { return <div className="stat"><div className="stat-icon">{icon}</div><div><span>{label}</span><strong>{value}</strong></div></div>; }
