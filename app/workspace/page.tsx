@@ -4,18 +4,13 @@ import "./workspace.css";
 import Link from "next/link";
 import { ArrowLeft, Bot, Clapperboard, FolderOpen, Gem, Play, Plus, Save, Sparkles, Upload, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { makeProjectId, readActiveProject, saveActiveProject, saveRenderSettings, type VideoProject } from "../../lib/project-store";
+import { makeProjectId, readActiveProject, readProjects, saveActiveProject, saveRenderSettings, type VideoProject } from "../../lib/project-store";
 
-const defaultProjects = [
-  { title: "Belajar Membuat Channel YouTube", status: "Draft", duration: "7 menit" },
-  { title: "Rahasia Rezeki dalam Kehidupan", status: "Produksi", duration: "8 menit" },
-  { title: "Tips Creator Pemula 2026", status: "Siap Render", duration: "5 menit" },
-];
-const assets = ["Thumbnail Frame", "Character Reference", "B-roll Library", "Background / Overlay", "Logo / Brand"];
 const statuses = ["Draft", "Produksi", "Siap Render", "Selesai"];
+const assets = ["Thumbnail Frame", "Character Reference", "B-roll Library", "Background / Overlay", "Logo / Brand"];
 
 export default function WorkspacePage() {
-  const [title, setTitle] = useState("Belajar Membuat Channel YouTube");
+  const [title, setTitle] = useState("Project Video Baru");
   const [status, setStatus] = useState("Draft");
   const [duration, setDuration] = useState("7 menit");
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
@@ -25,42 +20,50 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const requestedId = params.get("projectId");
     const requestedTitle = params.get("project");
+    const projects = readProjects();
     const active = readActiveProject();
-    const selected = active?.title === requestedTitle ? active : requestedTitle ? null : active;
+    const selected = (requestedId ? projects.find((p) => p.id === requestedId) : null)
+      || (requestedTitle ? projects.find((p) => p.title === requestedTitle) : null)
+      || (!requestedId && !requestedTitle ? active : null);
+
     if (selected) {
-      setActiveProject(selected); setTitle(selected.title); setStatus(selected.status); setDuration(`${selected.duration} menit`);
-      return;
+      setActiveProject(selected);
+      setTitle(selected.title);
+      setStatus(selected.status);
+      setDuration(`${selected.duration} menit`);
     }
-    const fallback = defaultProjects.find(p => p.title === requestedTitle) ?? defaultProjects[0];
-    setTitle(fallback.title); setStatus(fallback.status); setDuration(fallback.duration);
   }, []);
 
-  const projectCount = useMemo(() => defaultProjects.length + (activeProject && !defaultProjects.some(p => p.title === activeProject.title) ? 1 : 0), [activeProject]);
   const projectId = activeProject?.id || makeProjectId(title);
-  const studioHref = `/create?project=${encodeURIComponent(title)}&from=workspace`;
+  const studioHref = `/create?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
   const renderHref = `/render?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
+  const projectCount = readProjects().length;
 
   function saveWorkspace() {
     const minutes = Number((duration.match(/\d+/) || ["7"])[0]);
-    const base = activeProject;
     const project: VideoProject = {
-      id: makeProjectId(title.trim() || "Project Video Baru"),
+      id: activeProject?.id || makeProjectId(title.trim() || "Project Video Baru"),
       title: title.trim() || "Project Video Baru",
       status,
       duration: minutes,
-      topic: base?.topic,
-      style: base?.style,
-      ratio: base?.ratio,
-      language: base?.language,
-      voice: base?.voice,
-      music: base?.music,
-      scenes: base?.scenes || [],
+      topic: activeProject?.topic,
+      style: activeProject?.style,
+      ratio: activeProject?.ratio,
+      language: activeProject?.language,
+      voice: activeProject?.voice,
+      music: activeProject?.music,
+      scenes: activeProject?.scenes || [],
       updatedAt: new Date().toISOString(),
     };
     saveActiveProject(project);
     saveRenderSettings({ projectId: project.id, projectTitle: project.title, resolution: "1080p", fps: "30 FPS", quality: "High", format: "MP4", updatedAt: new Date().toISOString() });
-    setActiveProject(project); setTitle(project.title); setDuration(`${minutes} menit`); setSaved(true); window.setTimeout(() => setSaved(false), 1800);
+    setActiveProject(project);
+    setTitle(project.title);
+    setDuration(`${minutes} menit`);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
   }
 
   function askAssistant() {
@@ -92,7 +95,7 @@ export default function WorkspacePage() {
         </section>
 
         <div className="workspace-grid" style={{ marginTop: 16 }}>
-          <section className="form-card"><div className="eyebrow">PROJECT INFO</div><label htmlFor="project-title">NAMA PROJECT</label><input id="project-title" value={title} onChange={e => setTitle(e.target.value)} className="workspace-input" /><label>STATUS PRODUKSI</label><div className="status-grid">{statuses.map(item => <button key={item} type="button" onClick={() => setStatus(item)} className={status === item ? "status-choice active" : "status-choice"}>{item}</button>)}</div><div className="workspace-meta"><span><Clapperboard size={15} /> {projectCount} project di library</span><span>Durasi target {duration}</span></div></section>
+          <section className="form-card"><div className="eyebrow">PROJECT INFO</div><label htmlFor="project-title">NAMA PROJECT</label><input id="project-title" value={title} onChange={e => setTitle(e.target.value)} className="workspace-input" /><label>STATUS PRODUKSI</label><div className="status-grid">{statuses.map(item => <button key={item} type="button" onClick={() => setStatus(item)} className={status === item ? "status-choice active" : "status-choice"}>{item}</button>)}</div><div className="workspace-meta"><span><Clapperboard size={15} /> {projectCount} project di library</span><span>ID: {projectId}</span><span>Durasi target {duration}</span></div></section>
           <section className="form-card"><div className="eyebrow">PRODUCTION FLOW</div><div className="flow-list">{["Konsep", "Script", "Storyboard", "Audio", "Visual", "Subtitle", "Timeline"].map((step, i) => <Link href={`${studioHref}&tab=${encodeURIComponent(step)}`} key={step} className="flow-item"><span>{String(i + 1).padStart(2, "0")}</span><strong>{step}</strong><small>{i < 2 ? "Siap diedit" : "Lanjutkan di Studio"}</small><Play size={14} /></Link>)}</div></section>
         </div>
         <section className="form-card" style={{ marginTop: 16 }}><div className="box-title"><div><div className="eyebrow">ASSET LIBRARY</div><h2>Asset project</h2></div><label className="secondary-btn upload-label"><Upload size={15} /> Upload Asset<input type="file" accept="image/*,video/*,audio/*" hidden /></label></div><div className="asset-grid">{assets.map(asset => <div className="asset-card" key={asset}><div className="asset-placeholder"><FolderOpen size={22} /></div><strong>{asset}</strong><span>Belum ada asset</span></div>)}<div className="asset-card asset-add"><div className="asset-placeholder"><Plus size={22} /></div><strong>Tambah asset</strong><span>Upload gambar, video, atau audio</span></div></div></section>
