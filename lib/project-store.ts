@@ -17,6 +17,10 @@ export type VideoProject = {
   language?: string;
   voice?: string;
   music?: string;
+  script?: string;
+  autoStoryboard?: boolean;
+  autoSubtitle?: boolean;
+  smartPacing?: boolean;
   scenes: VideoScene[];
   updatedAt: string;
 };
@@ -35,6 +39,7 @@ const ACTIVE_KEY = "salvian-video-active-project";
 const WORKSPACE_KEY = "salvian-video-workspace";
 const PROJECTS_KEY = "salvian-video-projects";
 const RENDER_KEY = "salvian-video-render-settings";
+const DRAFT_PREFIX = "salvian-video-draft:";
 
 export function makeProjectId(title: string) {
   return `video-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project"}`;
@@ -59,9 +64,33 @@ function normalizeProject(value: Partial<VideoProject>): VideoProject | null {
     language: value.language,
     voice: value.voice,
     music: value.music,
+    script: value.script,
+    autoStoryboard: value.autoStoryboard,
+    autoSubtitle: value.autoSubtitle,
+    smartPacing: value.smartPacing,
     scenes: Array.isArray(value.scenes) ? value.scenes : [],
     updatedAt: value.updatedAt || new Date().toISOString(),
   };
+}
+
+function hydrateFromDraft(project: VideoProject): VideoProject {
+  if (typeof window === "undefined") return project;
+  try {
+    const raw = localStorage.getItem(`${DRAFT_PREFIX}${project.id}`);
+    if (!raw) return project;
+    const draft = JSON.parse(raw) as Partial<VideoProject> & { projectId?: string };
+    if (draft.projectId && draft.projectId !== project.id) return project;
+    return normalizeProject({
+      ...project,
+      ...draft,
+      id: project.id,
+      title: project.title,
+      status: project.status,
+      updatedAt: project.updatedAt,
+    }) || project;
+  } catch {
+    return project;
+  }
 }
 
 export function readActiveProject(): VideoProject | null {
@@ -69,7 +98,8 @@ export function readActiveProject(): VideoProject | null {
   try {
     const raw = localStorage.getItem(ACTIVE_KEY);
     if (!raw) return null;
-    return normalizeProject(JSON.parse(raw) as Partial<VideoProject>);
+    const project = normalizeProject(JSON.parse(raw) as Partial<VideoProject>);
+    return project ? hydrateFromDraft(project) : null;
   } catch {
     return null;
   }
@@ -85,7 +115,10 @@ export function readProjects(): VideoProject[] {
     }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((item) => normalizeProject(item as Partial<VideoProject>)).filter(Boolean) as VideoProject[];
+    return parsed
+      .map((item) => normalizeProject(item as Partial<VideoProject>))
+      .filter(Boolean)
+      .map((project) => hydrateFromDraft(project as VideoProject)) as VideoProject[];
   } catch {
     return [];
   }
@@ -124,6 +157,7 @@ export function deleteProject(projectId: string) {
   if (typeof window === "undefined") return;
   const projects = readProjects().filter((item) => item.id !== projectId);
   localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+  localStorage.removeItem(`${DRAFT_PREFIX}${projectId}`);
   const active = readActiveProject();
   if (active?.id === projectId) {
     localStorage.removeItem(ACTIVE_KEY);
