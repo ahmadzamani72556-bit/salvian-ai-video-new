@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const readiness = {
-      concept: Boolean(project.script?.trim() || project.title?.trim()),
+      concept: Boolean(project.script?.trim()),
       storyboard: Array.isArray(project.scenes) && project.scenes.length > 0,
       audio: Boolean(project.audio),
       visual: Boolean(project.visual),
