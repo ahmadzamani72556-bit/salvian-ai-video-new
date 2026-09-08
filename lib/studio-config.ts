@@ -3,6 +3,7 @@ import type {
   SubtitleConfig,
   TimelineConfig,
   VisualConfig,
+  VideoProject,
 } from "./project-store";
 
 export const DEFAULT_AUDIO_CONFIG: AudioConfig = {
@@ -26,7 +27,7 @@ export const DEFAULT_VISUAL_CONFIG: VisualConfig = {
 export const DEFAULT_SUBTITLE_CONFIG: SubtitleConfig = {
   enabled: true,
   language: "Indonesia",
-  style: "Clean",
+  style: "Clean White",
   position: "Bottom",
   size: "Medium",
 };
@@ -52,4 +53,28 @@ export function buildSubtitleConfig(input: Partial<SubtitleConfig> = {}): Subtit
 
 export function buildTimelineConfig(input: Partial<TimelineConfig> = {}): TimelineConfig {
   return { ...DEFAULT_TIMELINE_CONFIG, ...input };
+}
+
+export function buildStudioConfig(project: Partial<VideoProject>) {
+  return {
+    audio: buildAudioConfig({
+      ...(project.audio || {}),
+      voice: project.voice || project.audio?.voice,
+      music: project.music || project.audio?.music,
+      language: project.language || project.audio?.language,
+    }),
+    visual: buildVisualConfig({
+      ...(project.visual || {}),
+      style: project.style || project.visual?.style,
+    }),
+    subtitle: buildSubtitleConfig({
+      ...(project.subtitle || {}),
+      enabled: project.autoSubtitle ?? project.subtitle?.enabled,
+      language: project.language || project.subtitle?.language,
+    }),
+    timeline: buildTimelineConfig({
+      ...(project.timeline || {}),
+      pacing: project.smartPacing === false ? "Manual" : project.timeline?.pacing || "Smart",
+    }),
+  };
 }
