@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Copy, Film, Image as ImageIcon, Layers3, Loader2, Mic2, Music2, Play, Plus, Save, Scissors, Sparkles, Subtitles, Trash2, WandSparkles, Upload, Volume2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 type Scene={number:number;title:string;visual:string;duration:number;voice:string};
@@ -21,23 +21,51 @@ const defaultScenes:Scene[]=[
 
 export default function CreatePage(){
  const [duration,setDuration]=useState(7),[topic,setTopic]=useState(''),[style,setStyle]=useState('Cinematic'),[ratio,setRatio]=useState('16:9'),[language,setLanguage]=useState('Indonesia'),[voice,setVoice]=useState('Narator Natural'),[music,setMusic]=useState('Ambient Cinematic');
- const [loading,setLoading]=useState(false),[result,setResult]=useState<Project|null>(null),[error,setError]=useState(''),[activeTab,setActiveTab]=useState('Konsep'),[previewing,setPreviewing]=useState(false);
+ const [loading,setLoading]=useState(false),[result,setResult]=useState<Project|null>(null),[error,setError]=useState(''),[activeTab,setActiveTab]=useState('Konsep'),[previewing,setPreviewing]=useState(false),[projectTitle,setProjectTitle]=useState(''),[projectStatus,setProjectStatus]=useState('Draft');
  const [autoStoryboard,setAutoStoryboard]=useState(true),[autoSubtitle,setAutoSubtitle]=useState(true),[smartPacing,setSmartPacing]=useState(true);
  const [scenes,setScenes]=useState<Scene[]>(defaultScenes),[selectedScene,setSelectedScene]=useState(1);
  const totalSceneTime=useMemo(()=>scenes.reduce((sum,s)=>sum+s.duration,0),[scenes]);
+ useEffect(()=>{
+  const params=new URLSearchParams(window.location.search);
+  const requestedTitle=params.get('project');
+  const requestedTab=params.get('tab');
+  const rawActive=localStorage.getItem('salvian-video-active-project');
+  const rawWorkspace=localStorage.getItem('salvian-video-workspace');
+  let active:{title?:string;status?:string;duration?:string}|null=null;
+  try{if(rawActive)active=JSON.parse(rawActive);}catch{}
+  let workspace:{title?:string;status?:string;duration?:string}|null=null;
+  try{if(rawWorkspace)workspace=JSON.parse(rawWorkspace);}catch{}
+  const title=requestedTitle||active?.title||workspace?.title;
+  if(title)setProjectTitle(title);
+  if(active?.status)setProjectStatus(active.status);
+  else if(workspace?.status)setProjectStatus(workspace.status);
+  if(workspace?.duration){const match=workspace.duration.match(/\d+/);if(match)setDuration(Number(match[0]));}
+  if(requestedTab&&tabs.includes(requestedTab))setActiveTab(requestedTab);
+  const rawDraft=localStorage.getItem('salvian-video-draft');
+  try{
+   if(rawDraft){const draft=JSON.parse(rawDraft);if(!title||draft.projectTitle===title){if(draft.topic)setTopic(draft.topic);if(draft.duration)setDuration(draft.duration);if(draft.style)setStyle(draft.style);if(draft.ratio)setRatio(draft.ratio);if(draft.language)setLanguage(draft.language);if(draft.voice)setVoice(draft.voice);if(draft.music)setMusic(draft.music);if(Array.isArray(draft.scenes))setScenes(draft.scenes);}}
+  }catch{}
+ },[]);
  async function generate(){setLoading(true);setError('');setResult(null);try{const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,duration,style,ratio,language,voice,music,autoStoryboard,autoSubtitle,smartPacing})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Gagal membuat project.');setResult(data.project);if(data.project?.scenes?.length)setScenes(data.project.scenes);}catch(e){setError(e instanceof Error?e.message:'Terjadi kesalahan.')}finally{setLoading(false)}}
- function saveDraft(){localStorage.setItem('salvian-video-draft',JSON.stringify({topic,duration,style,ratio,language,voice,music,autoStoryboard,autoSubtitle,smartPacing,scenes}));setError('Draft tersimpan di workspace perangkat ini.');setTimeout(()=>setError(''),2500)}
+ function saveDraft(){
+  const savedProject={title:projectTitle||topic||'Project Video Baru',status:projectStatus||'Draft',duration:`${duration} menit`};
+  localStorage.setItem('salvian-video-draft',JSON.stringify({projectTitle:savedProject.title,topic,duration,style,ratio,language,voice,music,autoStoryboard,autoSubtitle,smartPacing,scenes}));
+  localStorage.setItem('salvian-video-workspace',JSON.stringify({...savedProject,updatedAt:new Date().toISOString()}));
+  localStorage.setItem('salvian-video-active-project',JSON.stringify(savedProject));
+  setProjectTitle(savedProject.title);setError('Draft tersimpan dan project aktif diperbarui.');setTimeout(()=>setError(''),2500)
+ }
  function addScene(){setScenes(prev=>[...prev,{number:prev.length+1,title:`Scene ${prev.length+1}`,visual:'Tambahkan arahan visual scene...',duration:45,voice:'Tambahkan narasi scene...'}])}
  function removeScene(n:number){setScenes(prev=>prev.filter(s=>s.number!==n).map((s,i)=>({...s,number:i+1})))}
  function duplicateScene(n:number){const source=scenes.find(s=>s.number===n);if(!source)return;setScenes(prev=>[...prev,{...source,number:prev.length+1,title:`${source.title} Copy`}])}
  function updateScene(n:number,key:keyof Scene,value:string|number){setScenes(prev=>prev.map(s=>s.number===n?{...s,[key]:value}:s))}
  function preview(){setPreviewing(true);setTimeout(()=>setPreviewing(false),1800)}
  const selected=scenes.find(s=>s.number===selectedScene)||scenes[0];
+ const workspaceHref=projectTitle?`/workspace?project=${encodeURIComponent(projectTitle)}`:'/workspace';
  return <main className="create-shell">
-  <nav className="dash-nav"><Link href="/" className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></Link><div className="studio-nav-actions"><span className="user-pill">2.500 kredit</span><Link href="/dashboard" className="secondary-btn">Dashboard</Link></div></nav>
+  <nav className="dash-nav"><Link href="/" className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></Link><div className="studio-nav-actions"><span className="user-pill">2.500 kredit</span><Link href={workspaceHref} className="secondary-btn">Workspace</Link></div></nav>
   <section className="create-main">
-   <Link href="/dashboard" className="back"><ArrowLeft size={16}/> Dashboard</Link>
-   <div className="studio-title"><div><div className="eyebrow">VIDEO STUDIO · LONG FORM</div><h1>Produksi video 5–8 menit.</h1><p>Workspace profesional untuk membangun script, storyboard, audio, visual, subtitle, timeline, sampai render akhir.</p></div><button className="secondary-btn" type="button" onClick={saveDraft}><Save size={16}/> Simpan Draft</button></div>
+   <Link href={workspaceHref} className="back"><ArrowLeft size={16}/> {projectTitle?'Kembali ke Workspace':'Dashboard'}</Link>
+   <div className="studio-title"><div><div className="eyebrow">VIDEO STUDIO · LONG FORM</div><h1>Produksi video 5–8 menit.</h1><p>{projectTitle?<>Project aktif: <strong>{projectTitle}</strong> · {projectStatus}</>:<>Workspace profesional untuk membangun script, storyboard, audio, visual, subtitle, timeline, sampai render akhir.</>}</p></div><button className="secondary-btn" type="button" onClick={saveDraft}><Save size={16}/> Simpan Draft</button></div>
    <div className="stage-strip studio-stages">{stages.map(([name,Icon],i)=><div className="stage" key={name}><span>{i+1}</span><Icon size={15}/><b>{name}</b></div>)}</div>
    <div className="studio-layout"><div className="studio-editor">
     <div className="tab-bar">{tabs.map(t=><button type="button" key={t} className={activeTab===t?'tab-active':''} onClick={()=>setActiveTab(t)}>{t}</button>)}</div>
