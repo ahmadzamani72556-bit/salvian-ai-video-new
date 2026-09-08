@@ -14,6 +14,10 @@ export const DEFAULT_AUDIO_CONFIG: AudioConfig = {
   musicVolume: 35,
   fadeIn: true,
   fadeOut: true,
+  voiceEngine: "Provider Voice",
+  musicEngine: "Provider Music",
+  ducking: true,
+  muted: false,
 };
 
 export const DEFAULT_VISUAL_CONFIG: VisualConfig = {
@@ -30,6 +34,7 @@ export const DEFAULT_SUBTITLE_CONFIG: SubtitleConfig = {
   style: "Clean White",
   position: "Bottom",
   size: "Medium",
+  outline: true,
 };
 
 export const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
@@ -42,19 +47,15 @@ export const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
 export function buildAudioConfig(input: Partial<AudioConfig> = {}): AudioConfig {
   return { ...DEFAULT_AUDIO_CONFIG, ...input };
 }
-
 export function buildVisualConfig(input: Partial<VisualConfig> = {}): VisualConfig {
   return { ...DEFAULT_VISUAL_CONFIG, ...input };
 }
-
 export function buildSubtitleConfig(input: Partial<SubtitleConfig> = {}): SubtitleConfig {
   return { ...DEFAULT_SUBTITLE_CONFIG, ...input };
 }
-
 export function buildTimelineConfig(input: Partial<TimelineConfig> = {}): TimelineConfig {
   return { ...DEFAULT_TIMELINE_CONFIG, ...input };
 }
-
 export function buildStudioConfig(project: Partial<VideoProject>) {
   return {
     audio: buildAudioConfig({
