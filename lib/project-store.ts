@@ -14,6 +14,10 @@ export type AudioConfig = {
   musicVolume: number;
   fadeIn: boolean;
   fadeOut: boolean;
+  voiceEngine: string;
+  musicEngine: string;
+  ducking: boolean;
+  muted: boolean;
 };
 
 export type VisualConfig = {
@@ -30,6 +34,7 @@ export type SubtitleConfig = {
   style: string;
   position: string;
   size: string;
+  outline: boolean;
 };
 
 export type TimelineConfig = {
@@ -97,6 +102,10 @@ function buildDefaultAudio(value: Partial<VideoProject>): AudioConfig {
     musicVolume: 35,
     fadeIn: true,
     fadeOut: true,
+    voiceEngine: "Provider Voice",
+    musicEngine: "Provider Music",
+    ducking: true,
+    muted: false,
   };
 }
 
@@ -106,7 +115,7 @@ function buildDefaultVisual(value: Partial<VideoProject>): VisualConfig {
     cameraMotion: "Smart",
     lighting: "Natural",
     transition: "Smooth",
-    assetMode: "AI Generated",
+    assetMode: "AI + Upload",
   };
 }
 
@@ -114,9 +123,10 @@ function buildDefaultSubtitle(value: Partial<VideoProject>): SubtitleConfig {
   return {
     enabled: value.autoSubtitle !== false,
     language: value.language || "Indonesia",
-    style: "Modern",
+    style: "Clean White",
     position: "Bottom",
     size: "Medium",
+    outline: true,
   };
 }
 
@@ -125,16 +135,20 @@ function buildDefaultTimeline(value: Partial<VideoProject>): TimelineConfig {
     pacing: value.smartPacing === false ? "Manual" : "Smart",
     transitionDuration: 0.5,
     introDuration: 2,
-    outroDuration: 2,
+    outroDuration: 3,
   };
 }
 
 function normalizeProject(value: Partial<VideoProject>): VideoProject | null {
   if (!value.title) return null;
-  const audio = value.audio || buildDefaultAudio(value);
-  const visual = value.visual || buildDefaultVisual(value);
-  const subtitle = value.subtitle || buildDefaultSubtitle(value);
-  const timeline = value.timeline || buildDefaultTimeline(value);
+  const defaultAudio = buildDefaultAudio(value);
+  const audio: AudioConfig = { ...defaultAudio, ...(value.audio || {}) };
+  const defaultVisual = buildDefaultVisual(value);
+  const visual: VisualConfig = { ...defaultVisual, ...(value.visual || {}) };
+  const defaultSubtitle = buildDefaultSubtitle(value);
+  const subtitle: SubtitleConfig = { ...defaultSubtitle, ...(value.subtitle || {}) };
+  const defaultTimeline = buildDefaultTimeline(value);
+  const timeline: TimelineConfig = { ...defaultTimeline, ...(value.timeline || {}) };
   return {
     id: value.id || makeProjectId(value.title),
     title: value.title,
