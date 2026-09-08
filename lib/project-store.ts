@@ -85,6 +85,20 @@ export function readProjects(): VideoProject[] {
   }
 }
 
+export function readProject(projectId?: string, title?: string): VideoProject | null {
+  if (typeof window === "undefined") return null;
+  const projects = readProjects();
+  if (projectId) {
+    const byId = projects.find((project) => project.id === projectId);
+    if (byId) return byId;
+  }
+  if (title) {
+    const byTitle = projects.find((project) => project.title === title);
+    if (byTitle) return byTitle;
+  }
+  return null;
+}
+
 export function saveActiveProject(project: VideoProject) {
   if (typeof window === "undefined") return;
   const normalized = normalizeProject(project);
