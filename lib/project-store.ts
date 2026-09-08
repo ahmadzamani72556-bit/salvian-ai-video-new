@@ -40,6 +40,12 @@ export function makeProjectId(title: string) {
   return `video-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "project"}`;
 }
 
+export function createProjectId(title: string) {
+  const base = makeProjectId(title);
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${base}-${suffix}`;
+}
+
 function normalizeProject(value: Partial<VideoProject>): VideoProject | null {
   if (!value.title) return null;
   return {
@@ -106,7 +112,7 @@ export function saveActiveProject(project: VideoProject) {
   localStorage.setItem(ACTIVE_KEY, JSON.stringify(normalized));
   localStorage.setItem(WORKSPACE_KEY, JSON.stringify(normalized));
 
-  const projects = readProjects().filter((item) => item.id !== normalized.id && item.title !== normalized.title);
+  const projects = readProjects().filter((item) => item.id !== normalized.id);
   localStorage.setItem(PROJECTS_KEY, JSON.stringify([normalized, ...projects]));
 }
 
