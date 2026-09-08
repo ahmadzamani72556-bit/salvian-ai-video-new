@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <main className="shell">
       <nav className="nav">
-        <Link href="/" className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></Link>
+        <Link href="/" className="brand"><img className="brand-logo" src="/salvian-ai-video-logo.svg" alt="Salvian AI Video" /><span>SALVIAN <b>AI VIDEO</b></span></Link>
         <div className="nav-links"><a href="#fitur">Fitur</a><a href="#alur">Alur</a><Link className="login" href="/login">Masuk</Link><Link className="nav-cta" href="/create">Mulai Gratis</Link></div>
       </nav>
       <section className="hero">
@@ -23,7 +23,7 @@ export default function Home() {
       </section>
       <section id="fitur" className="features"><div className="section-label">STUDIO PRODUKSI LENGKAP</div><h2>Satu alur dari <span>ide sampai video.</span></h2><div className="feature-grid"><Feature icon="01" title="Script & Storyboard" text="Bangun naskah panjang dan pecah otomatis menjadi scene yang runtut." /><Feature icon="02" title="Voice, Visual & Music" text="Siapkan narasi, visual scene, ambience, dan musik dengan kontrol kreator." /><Feature icon="03" title="Subtitle & Timeline" text="Atur subtitle, durasi scene, transisi, layer audio, dan preview sebelum render." /></div></section>
       <section id="alur" className="pipeline-section"><div><div className="section-label">PRODUCTION PIPELINE</div><h2>Lima tahap. <span>Satu video final.</span></h2></div><div className="pipeline"><Pipe n="01" icon={<Sparkles size={18}/>} title="Idea → Script"/><Pipe n="02" icon={<Layers3 size={18}/>} title="Storyboard → Scene"/><Pipe n="03" icon={<Clapperboard size={18}/>} title="Voice → Visual"/><Pipe n="04" icon={<Clock3 size={18}/>} title="Subtitle → Edit"/><Pipe n="05" icon={<Check size={18}/>} title="Render → MP4"/></div></section>
-      <footer><Link href="/" className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></Link><span>© 2026 SALVIAN AI VIDEO · Long Video Creation Studio</span></footer>
+      <footer><Link href="/" className="brand"><img className="brand-logo footer-logo" src="/salvian-ai-video-logo.svg" alt="Salvian AI Video" /><span>SALVIAN <b>AI VIDEO</b></span></Link><span>© 2026 SALVIAN AI VIDEO · Long Video Creation Studio</span></footer>
     </main>
   );
 }
