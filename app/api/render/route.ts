@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { renderEngine } from "../../../lib/render-engine";
 
 type RenderSettings = {
   projectId: string;
@@ -52,13 +53,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Format render tidak didukung." }, { status: 400 });
     }
 
-    const hasConcept = Boolean(project.script?.trim() || project.title?.trim());
-    const hasStoryboard = Array.isArray(project.scenes) && project.scenes.length > 0;
-    const hasAudio = Boolean(project.audio);
-    const hasVisual = Boolean(project.visual);
-    const hasSubtitle = Boolean(project.subtitle);
-    const hasTimeline = Boolean(project.timeline);
-    const readiness = { concept: hasConcept, storyboard: hasStoryboard, audio: hasAudio, visual: hasVisual, subtitle: hasSubtitle, timeline: hasTimeline };
+    const readiness = {
+      concept: Boolean(project.script?.trim() || project.title?.trim()),
+      storyboard: Array.isArray(project.scenes) && project.scenes.length > 0,
+      audio: Boolean(project.audio),
+      visual: Boolean(project.visual),
+      subtitle: Boolean(project.subtitle),
+      timeline: Boolean(project.timeline),
+    };
     const readyCount = Object.values(readiness).filter(Boolean).length;
 
     if (readyCount < 5) {
@@ -69,21 +71,30 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
+    const jobId = `render-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    const renderJob = {
-      id: `render-${crypto.randomUUID()}`,
+    const engineResult = await renderEngine.submit({
+      jobId,
       projectId: project.id,
       projectTitle: project.title,
-      status: "queued",
-      stage: "waiting-for-engine",
-      progress: 0,
+      project,
+      settings,
+    });
+
+    const renderJob = {
+      id: jobId,
+      projectId: project.id,
+      projectTitle: project.title,
+      status: engineResult.status,
+      stage: engineResult.stage,
+      progress: engineResult.progress,
       settings,
       readiness,
       createdAt: now,
       updatedAt: now,
-      engine: "pending",
-      output: null,
-      message: "Render job berhasil dibuat dan siap diteruskan ke engine render.",
+      engine: engineResult.engine,
+      output: engineResult.output,
+      message: engineResult.message,
     };
 
     return NextResponse.json({ renderJob }, { status: 202 });
