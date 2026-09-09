@@ -1,6 +1,7 @@
 import './globals.css';
 import './studio.css';
 import './logo.css';
+import CreatorCreditWidget from '../components/creator-credit-widget';
 
 export const metadata = {
   title: 'SALVIAN AI VIDEO',
@@ -12,5 +13,5 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="id"><body>{children}</body></html>;
+  return <html lang="id"><body>{children}<div style={{position:'fixed',right:14,bottom:14,zIndex:90}}><CreatorCreditWidget /></div></body></html>;
 }
