@@ -40,16 +40,16 @@ export default function CreatorCreditWidget() {
     }
   }
 
-  const credits = profile ? Number(profile.credits || 0).toLocaleString('id-ID') : '—';
-  const plan = profile?.plan || 'Belum terhubung';
+  const credits = profile ? Number(profile.credits || 0).toLocaleString('id-ID') : null;
+  const plan = profile?.plan || null;
 
   return (
-    <button type="button" onClick={syncCredits} disabled={busy} aria-label="Sinkronkan saldo Creator"
-      style={{ display:'inline-flex', alignItems:'center', gap:8, border:'1px solid #294260', background:'#071321', color:'#eef5ff', borderRadius:12, padding:'9px 12px', cursor:busy?'wait':'pointer', font:'inherit' }}>
+    <button type="button" onClick={syncCredits} disabled={busy} aria-label="Hubungkan dan sinkronkan saldo Creator"
+      style={{ display:'inline-flex', alignItems:'center', gap:8, border:'1px solid #294260', background:'#071321', color:'#eef5ff', borderRadius:12, padding:'9px 12px', cursor:busy?'wait':'pointer', font:'inherit', boxShadow:'0 8px 24px #0005' }}>
       <WalletCards size={16} />
       <span style={{display:'grid', textAlign:'left', lineHeight:1.15}}>
-        <strong style={{fontSize:12}}>{credits === '—' ? 'Saldo Creator' : `${credits} kredit`}</strong>
-        <small style={{fontSize:10, color:'#8fa2bd'}}>{busy ? 'Menyinkronkan…' : plan}</small>
+        <strong style={{fontSize:12}}>{credits === null ? 'Hubungkan Creator' : `${credits} kredit`}</strong>
+        <small style={{fontSize:10, color:'#8fa2bd'}}>{busy ? 'Menyinkronkan…' : plan || 'Klik untuk login & sinkronkan saldo'}</small>
       </span>
       <RefreshCw size={13} style={{opacity:.75}} />
     </button>
