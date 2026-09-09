@@ -14,7 +14,7 @@ export type RenderEngineRequest = {
 };
 
 export type RenderEngineResult = {
-  status: "queued" | "running" | "succeeded" | "failed";
+  status: "queued" | "running" | "succeeded" | "failed" | "timeouted" | "cancelled";
   stage: string;
   progress: number;
   engine: "pending" | "connected";
