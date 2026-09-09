@@ -1,84 +1,108 @@
 import { NextResponse } from "next/server";
+import OpenAI from "openai";
 
-function fallback(message: string, projectTitle?: string) {
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
+const CREATOR_ASSISTANT_URL = "https://salvian-ai-creator.vercel.app/api/assistant";
+
+const SYSTEM_PROMPT = `Anda adalah SALVIAN AI ASSISTANT resmi untuk SALVIAN AI VIDEO.
+
+Tugas utama:
+- Membantu creator membuat video YouTube panjang dari ide sampai siap render.
+- Membantu konsep, script/naskah, storyboard dan scene, voice-over, visual/prompt, subtitle, timeline/editing, musik pendukung, SEO YouTube, dan troubleshooting workflow.
+- Berikan jawaban dalam bahasa Indonesia yang ramah, jelas, praktis, dan langsung bisa dipakai.
+- Anggap pengguna mungkin menggunakan HP.
+- Gunakan konteks project yang diberikan bila relevan.
+- Jangan mengarang fitur atau hasil yang belum tersedia.
+- Jangan mengaku sudah menjalankan engine, merender video, menyimpan file, atau mengubah project jika tindakan itu belum benar-benar dilakukan.
+- Jangan pernah meminta password, API key, token, atau data rahasia.`;
+
+function localFallback(message: string, projectTitle?: string) {
   const text = message.trim();
-  const lower = text.toLowerCase();
   const project = projectTitle?.trim() || "project video ini";
+  return `Saya siap membantu ${project} untuk konsep, script, storyboard, voice-over, visual, subtitle, timeline, dan SEO YouTube.\n\nPertanyaan Anda: “${text}”\n\nKoneksi AI produksi sedang tidak tersedia, jadi jawaban ini berasal dari mode bantuan lokal.`;
+}
 
-  if (lower.includes("script") || lower.includes("naskah")) {
-    return `Baik. Untuk ${project}, saya sarankan struktur script seperti ini:\n\n1. Hook 0–20 detik: buka dengan masalah/pertanyaan yang membuat penonton penasaran.\n2. Pembukaan: jelaskan topik dan janji manfaat video.\n3. Isi utama: 4–6 poin dengan contoh yang mudah dipahami.\n4. Penutup: rangkum inti pembahasan.\n5. CTA: ajak penonton subscribe, komentar, dan menonton video berikutnya.\n\nKalau Anda kirim topik spesifiknya, saya bisa susunkan naskah lengkap 5–8 menit.`;
-  }
+function isBillingError(error: any) {
+  const status = Number(error?.status || error?.statusCode || 0);
+  const code = String(error?.code || error?.type || "").toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
+  return status === 429 || code === "billing_not_active" || code === "insufficient_quota" || code === "credit_balance_exhausted" || code === "organization_usage_limit_exceeded" || code === "organization_spend_limit_exceeded" || code === "project_spend_limit_exceeded" || /billing|insufficient.?quota|credit.?balance|no credits|quota/.test(message);
+}
 
-  if (lower.includes("storyboard") || lower.includes("scene")) {
-    return `Siap. Storyboard untuk ${project} bisa dibuat per scene dengan format:\n\n• Scene 01 — Hook — 10–15 detik — visual pembuka yang kuat.\n• Scene 02 — Pengenalan — 20–30 detik — konteks topik.\n• Scene 03–06 — Isi utama — masing-masing 40–70 detik — visual pendukung + voice-over.\n• Scene 07 — Kesimpulan — 30–45 detik.\n• Scene 08 — CTA — 10–15 detik.\n\nKirim topik atau script-nya dan saya bisa menyusun storyboard lengkap per scene.`;
-  }
-
-  if (lower.includes("seo") || lower.includes("youtube")) {
-    return `Untuk SEO YouTube ${project}, gunakan tiga bagian utama:\n\nJUDUL: kata kunci utama + manfaat/keingintahuan.\nDESKRIPSI: 2–3 paragraf yang menjelaskan isi video secara natural, lalu tambahkan CTA.\nTAG: gabungkan kata kunci utama, variasi pencarian, dan topik terkait.\n\nKalau Anda berikan topik videonya, saya bisa membuat paket judul, deskripsi, hashtag, dan tag siap tempel.`;
-  }
-
-  if (lower.includes("voice") || lower.includes("suara") || lower.includes("narator")) {
-    return `Untuk voice-over ${project}, gunakan suara narator dewasa yang jelas, natural, dan stabil. Atur kalimat pendek, beri jeda pada pergantian ide, dan hindari paragraf terlalu padat. Untuk konten dakwah/renungan, gunakan nada tenang dan berwibawa.`;
-  }
-
-  if (lower.includes("visual") || lower.includes("gambar") || lower.includes("prompt")) {
-    return `Untuk visual ${project}, buat satu prompt untuk setiap scene agar hasil konsisten. Sertakan subjek, lokasi, waktu, suasana, pencahayaan, kamera, rasio, dan gaya visual. Hindari prompt yang terlalu umum.`;
-  }
-
-  if (lower.includes("subtitle") || lower.includes("subtitel")) {
-    return `Subtitle sebaiknya mengikuti voice-over secara otomatis, maksimal 1–2 baris per tampilan, dengan ukuran yang mudah dibaca dan kontras tinggi. Untuk video YouTube, gunakan bahasa yang sama dengan voice-over kecuali Anda memang ingin subtitle terjemahan.`;
-  }
-
-  if (lower.includes("timeline") || lower.includes("editing") || lower.includes("edit")) {
-    return `Untuk timeline ${project}, gunakan pacing Smart: hook cepat di awal, pergantian visual mengikuti ide/kalimat, transisi sederhana, dan beri ruang pada bagian penting agar penonton tidak merasa terlalu cepat.`;
-  }
-
-  return `Saya menerima pertanyaan Anda: “${text}”\n\nSaya siap membantu project ${project} pada script, storyboard, voice-over, visual, subtitle, timeline, dan SEO YouTube.\n\nSaat koneksi model AI produksi belum tersedia, saya tetap bisa memberikan panduan kerja langsung dari mode bantuan lokal ini. Untuk jawaban AI generatif penuh, deployment harus memiliki OPENAI_API_KEY yang valid.`;
+async function callCreatorAssistant(auth: string, message: string, history: unknown[]) {
+  const response = await fetch(CREATOR_ASSISTANT_URL, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ message, messages: history }),
+    cache: "no-store",
+  });
+  const raw = await response.text();
+  let data: any = {};
+  try { data = JSON.parse(raw); } catch {}
+  return { response, data };
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const message = typeof body?.message === "string" ? body.message.trim() : "";
     const projectTitle = typeof body?.projectTitle === "string" ? body.projectTitle.trim() : "";
     const projectContext = typeof body?.projectContext === "string" ? body.projectContext.slice(0, 4000) : "";
+    const history = Array.isArray(body?.history) ? body.history : Array.isArray(body?.messages) ? body.messages : [];
     if (!message) return NextResponse.json({ error: "Pesan wajib diisi." }, { status: 400 });
+    if (message.length > 4000) return NextResponse.json({ error: "Pertanyaan terlalu panjang. Ringkas pertanyaan Anda." }, { status: 400 });
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim() || "";
-    if (!apiKey) {
-      return NextResponse.json({ ok: true, mode: "fallback", reply: fallback(message, projectTitle) });
-    }
+    const safeHistory = history
+      .filter((item: unknown) => {
+        if (!item || typeof item !== "object") return false;
+        const value = item as { role?: unknown; content?: unknown };
+        return (value.role === "user" || value.role === "assistant") && typeof value.content === "string";
+      })
+      .slice(-12)
+      .map((item: { role: "user" | "assistant"; content: string }) => ({ role: item.role, content: item.content.slice(0, 5000) }));
 
-    const context = projectContext ? `\nKonteks project saat ini:\n${projectContext}` : "";
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || "gpt-5.6-luna",
-        input: [
-          {
-            role: "system",
-            content: [{
-              type: "input_text",
-              text: "Anda adalah SALVIAN AI ASSISTANT untuk SALVIAN AI VIDEO. Jawab dalam bahasa Indonesia secara ringkas, praktis, dan langsung bisa dipakai. Bantu pengguna membuat dan memperbaiki konsep, script, storyboard, voice-over, visual, subtitle, timeline, SEO YouTube, serta workflow project. Gunakan konteks project yang diberikan bila relevan. Jangan mengaku sudah menjalankan engine, merender video, menyimpan file, atau mengubah project jika tindakan itu belum benar-benar dilakukan."
-            }]
-          },
-          { role: "user", content: [{ type: "input_text", text: message + context }] }
-        ]
-      }),
-    });
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) return NextResponse.json({ ok: true, mode: "fallback", reply: localFallback(message, projectTitle) });
 
-    const data = await response.json();
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        return NextResponse.json({ ok: true, mode: "fallback", reply: fallback(message, projectTitle) });
+    const context = projectContext ? `\n\nKonteks project saat ini:\n${projectContext}` : "";
+    const input = [...safeHistory, { role: "user" as const, content: message.slice(0, 5000) + context }];
+    const model = (process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || process.env.OPENAI_MODEL || "gpt-5.6-luna").trim();
+    const auth = request.headers.get("authorization");
+
+    try {
+      const client = new OpenAI({ apiKey });
+      const response = await client.responses.create({
+        model,
+        instructions: SYSTEM_PROMPT,
+        input,
+        max_output_tokens: 1000,
+      });
+      const reply = response.output_text?.trim() || "";
+      if (!reply) throw new Error("AI tidak menghasilkan jawaban.");
+      return NextResponse.json({ ok: true, mode: "openai", reply, model });
+    } catch (error: any) {
+      if (isBillingError(error) && auth) {
+        try {
+          const creator = await callCreatorAssistant(auth, message, safeHistory);
+          if (creator.response.ok) {
+            const reply = String(creator.data?.text || creator.data?.output_text || creator.data?.response || "").trim();
+            if (reply) return NextResponse.json({ ok: true, mode: "creator-fallback", reply });
+          }
+        } catch (fallbackError) {
+          console.error("Creator Assistant fallback error", fallbackError);
+        }
       }
+
+      if (isBillingError(error)) {
+        return NextResponse.json({ ok: true, mode: "fallback", reply: localFallback(message, projectTitle) });
+      }
+      console.error("SALVIAN AI VIDEO Assistant OpenAI error", error);
       return NextResponse.json({ error: "AI Assistant sedang mengalami gangguan. Coba lagi." }, { status: 502 });
     }
-
-    const reply = typeof data?.output_text === "string" ? data.output_text.trim() : "";
-    return NextResponse.json({ ok: true, mode: "openai", reply: reply || "AI Assistant tidak mengembalikan jawaban." });
-  } catch {
+  } catch (error) {
+    console.error("SALVIAN AI VIDEO Assistant error", error);
     return NextResponse.json({ error: "AI Assistant tidak dapat memproses permintaan." }, { status: 500 });
   }
 }
