@@ -7,11 +7,20 @@ const formats = ["MP4", "WebM"];
 
 type RenderProject = { id?: string; title?: string; script?: string; scenes?: unknown[]; audio?: unknown; visual?: unknown; subtitle?: unknown; timeline?: unknown };
 
+type RenderSettingsInput = {
+  projectId?: unknown;
+  projectTitle?: unknown;
+  resolution?: unknown;
+  fps?: unknown;
+  quality?: unknown;
+  format?: unknown;
+};
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const project = body.project && typeof body.project === "object" ? body.project as RenderProject : null;
-    const settings = body.settings && typeof body.settings === "object" ? body.settings : null;
+    const settings = body.settings && typeof body.settings === "object" ? body.settings as RenderSettingsInput : null;
     const projectId = typeof settings?.projectId === "string" ? settings.projectId.trim() : typeof body.projectId === "string" ? body.projectId.trim() : "";
     const projectTitle = typeof settings?.projectTitle === "string" ? settings.projectTitle.trim() : typeof body.projectTitle === "string" ? body.projectTitle.trim() : "";
     const resolution = typeof settings?.resolution === "string" ? settings.resolution : typeof body.resolution === "string" ? body.resolution : "1080p";
@@ -19,7 +28,7 @@ export async function POST(request: Request) {
     const quality = typeof settings?.quality === "string" ? settings.quality : typeof body.quality === "string" ? body.quality : "High";
     const format = typeof settings?.format === "string" ? settings.format : typeof body.format === "string" ? body.format : "MP4";
     if (!projectId || !projectTitle) return NextResponse.json({ error: "Project wajib dipilih." }, { status: 400 });
-    if (project?.id !== projectId || project?.title !== projectTitle) return NextResponse.json({ error: "Project tidak cocok dengan pengaturan render." }, { status: 400 });
+    if (!project || project.id !== projectId || project.title !== projectTitle) return NextResponse.json({ error: "Project tidak cocok dengan pengaturan render." }, { status: 400 });
     if (!resolutions.includes(resolution) || !fpsOptions.includes(fps) || !qualities.includes(quality) || !formats.includes(format)) return NextResponse.json({ error: "Pengaturan render tidak valid." }, { status: 400 });
     const readiness = { concept: Boolean(project.script?.trim()), storyboard: Array.isArray(project.scenes) && project.scenes.length > 0, audio: Boolean(project.audio), visual: Boolean(project.visual), subtitle: Boolean(project.subtitle), timeline: Boolean(project.timeline) };
     const readyCount = Object.values(readiness).filter(Boolean).length;
