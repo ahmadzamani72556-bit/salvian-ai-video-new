@@ -65,6 +65,7 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     const auth = request.headers.get("authorization");
+
     if (!apiKey) {
       if (auth) {
         try {
@@ -81,21 +82,27 @@ export async function POST(request: Request) {
     }
 
     const context = projectContext ? `\n\nKonteks project saat ini:\n${projectContext}` : "";
-    const input = [...safeHistory, { role: "user" as const, content: message.slice(0, 5000) + context }];
-    const model = (process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || process.env.OPENAI_MODEL || "gpt-5.6-luna").trim();
+    const input = [...safeHistory, { role: "user" as const, content: message + context }];
+
+    // Samakan konfigurasi inti dengan SALVIAN AI CREATOR PRO.
+    // OPENAI_MODEL lama di Video tidak lagi mengambil alih konfigurasi Assistant.
+    const model = (process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || "gpt-5.6-luna").trim();
 
     try {
       const client = new OpenAI({ apiKey });
-      const response = await client.responses.create({ model, instructions: SYSTEM_PROMPT, input, max_output_tokens: 1000 });
+      const response = await client.responses.create({
+        model,
+        instructions: SYSTEM_PROMPT,
+        input,
+      });
       const reply = response.output_text?.trim() || "";
       if (!reply) throw new Error("AI tidak menghasilkan jawaban.");
       return NextResponse.json({ ok: true, mode: "openai", reply, model });
     } catch (error: any) {
       console.error("SALVIAN AI VIDEO Assistant OpenAI error", error);
 
-      // Samakan perilaku dengan SALVIAN AI MUSIC: bila jalur OpenAI lokal
-      // bermasalah (billing, model, project, permission, atau konfigurasi),
-      // teruskan ke Assistant Creator PRO yang sudah terbukti aktif.
+      // Jalur cadangan yang sama seperti pola SALVIAN AI MUSIC:
+      // gunakan Assistant Creator PRO yang sudah terbukti aktif.
       if (auth) {
         try {
           const creator = await callCreatorAssistant(auth, message, safeHistory);
