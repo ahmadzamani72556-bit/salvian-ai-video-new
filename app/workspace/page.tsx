@@ -2,58 +2,17 @@
 
 import "./workspace.css";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Bot,
-  Clapperboard,
-  FolderOpen,
-  Gem,
-  Play,
-  Plus,
-  Save,
-  Sparkles,
-  Upload,
-  WandSparkles,
-} from "lucide-react";
+import { ArrowLeft, Bot, Clapperboard, FolderOpen, Gem, Play, Plus, Save, Sparkles, Upload, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  createProjectId,
-  makeProjectId,
-  readActiveProject,
-  readProjects,
-  saveActiveProject,
-  saveRenderSettings,
-  type VideoProject,
-} from "../../lib/project-store";
+import { createProjectId, makeProjectId, readActiveProject, readProjects, saveActiveProject, saveRenderSettings, type VideoProject } from "../../lib/project-store";
 
 const statuses = ["Draft", "Produksi", "Siap Render", "Selesai"];
-const assetCategories = [
-  "Thumbnail Frame",
-  "Character Reference",
-  "B-roll Library",
-  "Background / Overlay",
-  "Logo / Brand",
-];
+const assetCategories = ["Thumbnail Frame", "Character Reference", "B-roll Library", "Background / Overlay", "Logo / Brand"];
 const ASSET_KEY = "salvian-video-workspace-assets";
-
 type WorkspaceAsset = { name: string; type: string; size: string };
 type AssetMap = Record<string, WorkspaceAsset[]>;
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function readAssetMap(): AssetMap {
-  try {
-    const raw = localStorage.getItem(ASSET_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
+function formatBytes(bytes: number) { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`; return `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
+function readAssetMap(): AssetMap { try { const raw = localStorage.getItem(ASSET_KEY); const parsed = raw ? JSON.parse(raw) : {}; return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}; } catch { return {}; } }
 
 export default function WorkspacePage() {
   const [title, setTitle] = useState("Project Video Baru");
@@ -62,7 +21,9 @@ export default function WorkspacePage() {
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
   const [saved, setSaved] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantMessage, setAssistantMessage] = useState("");
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantReply, setAssistantReply] = useState("");
+  const [assistantLoading, setAssistantLoading] = useState(false);
   const [workspaceAssets, setWorkspaceAssets] = useState<WorkspaceAsset[]>([]);
 
   useEffect(() => {
@@ -71,341 +32,52 @@ export default function WorkspacePage() {
     const projectTitle = params.get("project");
     const projects = readProjects();
     const active = readActiveProject();
-    const selected =
-      (id ? projects.find((item) => item.id === id) : null) ||
-      (projectTitle ? projects.find((item) => item.title === projectTitle) : null) ||
-      (!id && !projectTitle ? active : null);
-
+    const selected = (id ? projects.find((item) => item.id === id) : null) || (projectTitle ? projects.find((item) => item.title === projectTitle) : null) || (!id && !projectTitle ? active : null);
     if (!selected) return;
-
-    setActiveProject(selected);
-    setTitle(selected.title);
-    setStatus(selected.status);
-    setDuration(`${selected.duration} menit`);
-
-    const map = readAssetMap();
-    setWorkspaceAssets(Array.isArray(map[selected.id]) ? map[selected.id] : []);
+    setActiveProject(selected); setTitle(selected.title); setStatus(selected.status); setDuration(`${selected.duration} menit`);
+    const map = readAssetMap(); setWorkspaceAssets(Array.isArray(map[selected.id]) ? map[selected.id] : []);
   }, []);
 
   const projectId = activeProject?.id || makeProjectId(title);
   const studioHref = `/create?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
   const renderHref = `/render?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
   const projectCount = useMemo(() => readProjects().length, [activeProject, saved]);
-
-  const configSummary = activeProject
-    ? {
-        audio: activeProject.audio?.voice || activeProject.voice || "Belum diset",
-        music: activeProject.audio?.music || activeProject.music || "Belum diset",
-        visual: activeProject.visual?.style || activeProject.style || "Belum diset",
-        camera: activeProject.visual?.cameraMotion || "Smart",
-        subtitle: activeProject.subtitle?.language || activeProject.language || "Belum diset",
-        timeline: activeProject.timeline?.pacing || "Smart",
-      }
-    : null;
+  const configSummary = activeProject ? { audio: activeProject.audio?.voice || activeProject.voice || "Belum diset", music: activeProject.audio?.music || activeProject.music || "Belum diset", visual: activeProject.visual?.style || activeProject.style || "Belum diset", camera: activeProject.visual?.cameraMotion || "Smart", subtitle: activeProject.subtitle?.language || activeProject.language || "Belum diset", timeline: activeProject.timeline?.pacing || "Smart" } : null;
 
   function saveWorkspace() {
-    const match = duration.match(/\d+/);
-    const minutes = Number(match ? match[0] : "7");
-    const cleanTitle = title.trim() || "Project Video Baru";
-    const project: VideoProject = {
-      ...(activeProject || {}),
-      id: activeProject?.id || createProjectId(cleanTitle),
-      title: cleanTitle,
-      status,
-      duration: minutes,
-      scenes: activeProject?.scenes || [],
-      updatedAt: new Date().toISOString(),
-    };
-
-    saveActiveProject(project);
-    saveRenderSettings({
-      projectId: project.id,
-      projectTitle: project.title,
-      resolution: "1080p",
-      fps: "30 FPS",
-      quality: "High",
-      format: "MP4",
-      updatedAt: new Date().toISOString(),
-    });
-
-    const map = readAssetMap();
-    map[project.id] = workspaceAssets;
-    localStorage.setItem(ASSET_KEY, JSON.stringify(map));
-    setActiveProject(project);
-    setTitle(project.title);
-    setDuration(`${minutes} menit`);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1800);
+    const match = duration.match(/\d+/); const minutes = Number(match ? match[0] : "7"); const cleanTitle = title.trim() || "Project Video Baru";
+    const project: VideoProject = { ...(activeProject || {}), id: activeProject?.id || createProjectId(cleanTitle), title: cleanTitle, status, duration: minutes, scenes: activeProject?.scenes || [], updatedAt: new Date().toISOString() };
+    saveActiveProject(project); saveRenderSettings({ projectId: project.id, projectTitle: project.title, resolution: "1080p", fps: "30 FPS", quality: "High", format: "MP4", updatedAt: new Date().toISOString() });
+    const map = readAssetMap(); map[project.id] = workspaceAssets; localStorage.setItem(ASSET_KEY, JSON.stringify(map)); setActiveProject(project); setTitle(project.title); setDuration(`${minutes} menit`); setSaved(true); window.setTimeout(() => setSaved(false), 1800);
   }
+  function handleAssets(files: FileList | null) { if (!files) return; const next = Array.from(files).map((file) => ({ name: file.name, type: file.type || "asset", size: formatBytes(file.size) })); setWorkspaceAssets((previous) => { const merged = [...previous, ...next]; const map = readAssetMap(); map[projectId] = merged; localStorage.setItem(ASSET_KEY, JSON.stringify(map)); return merged; }); }
+  function removeAsset(index: number) { setWorkspaceAssets((previous) => { const merged = previous.filter((_, itemIndex) => itemIndex !== index); const map = readAssetMap(); map[projectId] = merged; localStorage.setItem(ASSET_KEY, JSON.stringify(map)); return merged; }); }
 
-  function handleAssets(files: FileList | null) {
-    if (!files) return;
-    const next = Array.from(files).map((file) => ({
-      name: file.name,
-      type: file.type || "asset",
-      size: formatBytes(file.size),
-    }));
-
-    setWorkspaceAssets((previous) => {
-      const merged = [...previous, ...next];
-      const map = readAssetMap();
-      map[projectId] = merged;
-      localStorage.setItem(ASSET_KEY, JSON.stringify(map));
-      return merged;
-    });
+  async function askAssistant() {
+    const message = assistantInput.trim(); if (!message || assistantLoading) return;
+    setAssistantLoading(true); setAssistantReply("");
+    try {
+      const response = await fetch("/api/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, projectTitle: title, projectContext: JSON.stringify({ topic: activeProject?.topic || "", duration: activeProject?.duration || duration, style: activeProject?.style || configSummary?.visual || "", scenes: activeProject?.scenes?.length || 0 }) }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "AI Assistant gagal merespons.");
+      setAssistantReply(data.reply || "AI Assistant tidak memberikan jawaban.");
+    } catch (error) { setAssistantReply(error instanceof Error ? error.message : "AI Assistant tidak dapat merespons."); }
+    finally { setAssistantLoading(false); }
   }
+  function quickAsk(message: string) { setAssistantInput(message); }
+  function stepDescription(step: string) { if (step === "Konsep") return activeProject?.topic ? "Topik tersimpan" : "Belum diisi"; if (step === "Script") return activeProject?.script ? "Naskah tersimpan" : "Siapkan script"; if (step === "Storyboard") return activeProject?.scenes?.length ? `${activeProject.scenes.length} scene` : "Siapkan storyboard"; if (step === "Audio") return activeProject?.audio ? "Konfigurasi tersimpan" : "Siapkan audio"; if (step === "Visual") return activeProject?.visual ? "Konfigurasi tersimpan" : "Siapkan visual"; if (step === "Subtitle") return activeProject?.subtitle ? "Konfigurasi tersimpan" : "Siapkan subtitle"; return activeProject?.timeline ? "Konfigurasi tersimpan" : "Siapkan timeline"; }
 
-  function removeAsset(index: number) {
-    setWorkspaceAssets((previous) => {
-      const merged = previous.filter((_, itemIndex) => itemIndex !== index);
-      const map = readAssetMap();
-      map[projectId] = merged;
-      localStorage.setItem(ASSET_KEY, JSON.stringify(map));
-      return merged;
-    });
-  }
-
-  function askAssistant() {
-    const message = assistantMessage.trim();
-    if (!message) return;
-    setAssistantMessage(`AI Assistant menerima: ${message}`);
-  }
-
-  function stepDescription(step: string) {
-    if (step === "Konsep") return activeProject?.topic ? "Topik tersimpan" : "Belum diisi";
-    if (step === "Script") return activeProject?.script ? "Naskah tersimpan" : "Siapkan script";
-    if (step === "Storyboard") return activeProject?.scenes?.length ? `${activeProject.scenes.length} scene` : "Siapkan storyboard";
-    if (step === "Audio") return activeProject?.audio ? "Konfigurasi tersimpan" : "Siapkan audio";
-    if (step === "Visual") return activeProject?.visual ? "Konfigurasi tersimpan" : "Siapkan visual";
-    if (step === "Subtitle") return activeProject?.subtitle ? "Konfigurasi tersimpan" : "Siapkan subtitle";
-    return activeProject?.timeline ? "Konfigurasi tersimpan" : "Siapkan timeline";
-  }
-
-  return (
-    <main className="dash-shell">
-      <nav className="dash-nav">
-        <Link href="/" className="brand">
-          <span className="brand-mark">S</span>
-          <span>SALVIAN <b>AI VIDEO</b></span>
-        </Link>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="user-pill">Saldo Creator</span>
-          <button className="secondary-btn" type="button" onClick={() => setAssistantOpen(true)}>
-            <Bot size={16} /> AI Assistant
-          </button>
-        </div>
-      </nav>
-
-      <section className="dash-main">
-        <Link href="/projects" className="back">
-          <ArrowLeft size={16} /> Project Library
-        </Link>
-
-        <div className="dash-head">
-          <div>
-            <div className="eyebrow">PROJECT WORKSPACE</div>
-            <h1>Ruang kerja video.</h1>
-            <p>Project aktif: <strong>{title}</strong></p>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="secondary-btn" type="button" onClick={saveWorkspace}>
-              <Save size={16} /> {saved ? "Tersimpan" : "Simpan Draft"}
-            </button>
-            <Link href={studioHref} className="primary">
-              <WandSparkles size={16} /> Buka Studio
-            </Link>
-          </div>
-        </div>
-
-        <section className="form-card" style={{ marginTop: 16 }}>
-          <div className="box-title">
-            <div>
-              <div className="eyebrow">AI CREATOR SUITE</div>
-              <h2>Asisten produksi</h2>
-            </div>
-            <span className="ready-pill"><Sparkles size={14} /> AI READY</span>
-          </div>
-          <div className="workspace-ai-grid">
-            <button className="ai-feature-card" type="button" onClick={() => setAssistantOpen(true)}>
-              <span className="ai-icon"><Bot size={20} /></span>
-              <strong>AI Assistant</strong>
-              <small>Bantu script, storyboard, audio, visual, subtitle, dan SEO.</small>
-              <b>Buka Asisten →</b>
-            </button>
-            <div className="ai-feature-card pro-card">
-              <span className="ai-icon"><Gem size={20} /></span>
-              <strong>PRO</strong>
-              <small>Workflow produksi lanjutan, kualitas output tinggi, dan fitur AI premium.</small>
-              <b>Fitur Premium</b>
-            </div>
-            <div className="ai-feature-card adroit-card">
-              <span className="ai-icon"><WandSparkles size={20} /></span>
-              <strong>ADROIT</strong>
-              <small>Lapisan AI pintar untuk membantu mengoptimalkan workflow project secara otomatis.</small>
-              <b>Smart Workflow</b>
-            </div>
-          </div>
-        </section>
-
-        <div className="workspace-grid" style={{ marginTop: 16 }}>
-          <section className="form-card">
-            <div className="eyebrow">PROJECT INFO</div>
-            <label htmlFor="project-title">NAMA PROJECT</label>
-            <input id="project-title" value={title} onChange={(event) => setTitle(event.target.value)} className="workspace-input" />
-            <label>STATUS PRODUKSI</label>
-            <div className="status-grid">
-              {statuses.map((item) => (
-                <button key={item} type="button" onClick={() => setStatus(item)} className={status === item ? "status-choice active" : "status-choice"}>
-                  {item}
-                </button>
-              ))}
-            </div>
-            <div className="workspace-meta">
-              <span><Clapperboard size={15} /> {projectCount} project di library</span>
-              <span>ID: {projectId}</span>
-              <span>Durasi target {duration}</span>
-            </div>
-          </section>
-
-          <section className="form-card">
-            <div className="eyebrow">PRODUCTION FLOW</div>
-            <div className="flow-list">
-              {["Konsep", "Script", "Storyboard", "Audio", "Visual", "Subtitle", "Timeline"].map((step, index) => (
-                <Link href={`${studioHref}&tab=${encodeURIComponent(step)}`} key={step} className="flow-item">
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <strong>{step}</strong>
-                  <small>{stepDescription(step)}</small>
-                  <Play size={14} />
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <section className="form-card" style={{ marginTop: 16 }}>
-          <div className="box-title">
-            <div>
-              <div className="eyebrow">STUDIO CONFIGURATION</div>
-              <h2>Ringkasan pengaturan</h2>
-            </div>
-            <Link href={studioHref} className="secondary-btn"><WandSparkles size={15} /> Edit di Studio</Link>
-          </div>
-          <div className="workspace-checks">
-            <span>🎙 Voice: <strong>{configSummary?.audio || "Belum diset"}</strong></span>
-            <span>🎵 Music: <strong>{configSummary?.music || "Belum diset"}</strong></span>
-            <span>🎬 Visual: <strong>{configSummary?.visual || "Belum diset"}</strong></span>
-            <span>📷 Camera: <strong>{configSummary?.camera || "Smart"}</strong></span>
-            <span>💬 Subtitle: <strong>{configSummary?.subtitle || "Belum diset"}</strong></span>
-            <span>⏱ Timeline: <strong>{configSummary?.timeline || "Smart"}</strong></span>
-          </div>
-        </section>
-
-        <section className="form-card" style={{ marginTop: 16 }}>
-          <div className="box-title">
-            <div>
-              <div className="eyebrow">ASSET LIBRARY</div>
-              <h2>Asset project</h2>
-            </div>
-            <label className="secondary-btn upload-label">
-              <Upload size={15} /> Upload Asset
-              <input type="file" accept="image/*,video/*,audio/*" multiple hidden onChange={(event) => handleAssets(event.target.files)} />
-            </label>
-          </div>
-          <div className="asset-grid">
-            {assetCategories.map((asset) => (
-              <div className="asset-card" key={asset}>
-                <div className="asset-placeholder"><FolderOpen size={22} /></div>
-                <strong>{asset}</strong>
-                <span>{workspaceAssets.length ? `${workspaceAssets.length} asset tersimpan` : "Belum ada asset"}</span>
-              </div>
-            ))}
-            <label className="asset-card asset-add" style={{ cursor: "pointer" }}>
-              <div className="asset-placeholder"><Plus size={22} /></div>
-              <strong>Tambah asset</strong>
-              <span>Upload gambar, video, atau audio</span>
-              <input type="file" accept="image/*,video/*,audio/*" multiple hidden onChange={(event) => handleAssets(event.target.files)} />
-            </label>
-          </div>
-          {workspaceAssets.length > 0 && (
-            <div className="uploaded-list">
-              {workspaceAssets.map((file, index) => (
-                <div className="uploaded-item" key={`${file.name}-${index}`}>
-                  <FolderOpen size={16} />
-                  <span><strong>{file.name}</strong><small>{file.type} · {file.size}</small></span>
-                  <button type="button" className="icon-button" aria-label={`Hapus ${file.name}`} onClick={() => removeAsset(index)}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="form-card" style={{ marginTop: 16 }}>
-          <div className="box-title">
-            <div>
-              <div className="eyebrow">MONETIZATION</div>
-              <h2>Paket & kredit</h2>
-            </div>
-            <Gem size={20} />
-          </div>
-          <div className="monetization-grid">
-            <div><strong>FREE</strong><span>100 kredit awal · workflow dasar</span><small>Untuk mencoba Salvian AI Video</small></div>
-            <div className="premium-plan">
-              <strong>PRO · PREMIUM</strong>
-              <span>1.000 kredit / bulan · fitur AI lanjutan</span>
-              <small>Pembelian dan saldo dikelola melalui Salvian AI Creator</small>
-              <Link href="/pricing" className="primary">Lihat Paket</Link>
-            </div>
-          </div>
-        </section>
-
-        <section className="form-card" style={{ marginTop: 16 }}>
-          <div className="box-title">
-            <div>
-              <div className="eyebrow">RENDER CENTER</div>
-              <h2>Siapkan output akhir</h2>
-            </div>
-            <Link href={renderHref} className="primary">Buka Render Center <Play size={15} /></Link>
-          </div>
-          <div className="workspace-checks">
-            <span>{activeProject?.topic || activeProject?.script ? "✓" : "○"} Project</span>
-            <span>{activeProject?.scenes?.length ? "✓" : "○"} Storyboard</span>
-            <span>{activeProject?.audio ? "✓" : "○"} Audio</span>
-            <span>{activeProject?.visual ? "✓" : "○"} Visual</span>
-            <span>{activeProject?.subtitle ? "✓" : "○"} Subtitle</span>
-            <span>{activeProject?.timeline ? "✓" : "○"} Timeline</span>
-          </div>
-          <p className="workspace-note">Saldo kredit dikelola melalui Salvian AI Creator. Pembayaran belum diproses dari halaman ini.</p>
-        </section>
-      </section>
-
-      {assistantOpen && (
-        <div className="ai-modal-backdrop" onClick={() => setAssistantOpen(false)}>
-          <section className="ai-assistant-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="box-title">
-              <div><div className="eyebrow">SALVIAN AI ASSISTANT</div><h2>Teman produksi project</h2></div>
-              <button className="secondary-btn" type="button" onClick={() => setAssistantOpen(false)}>Tutup</button>
-            </div>
-            <div className="ai-chat">
-              <div className="ai-bubble">
-                <Bot size={17} />
-                <div><strong>AI Assistant</strong><p>Saya siap membantu project <b>{title}</b>. Mau membuat script, storyboard, voice-over, visual, subtitle, atau SEO?</p></div>
-              </div>
-              {assistantMessage && <div className="ai-user-bubble">{assistantMessage}</div>}
-            </div>
-            <div className="ai-quick-actions">
-              <button type="button" onClick={() => setAssistantMessage("Buatkan ide script untuk project ini")}>Buat Script</button>
-              <button type="button" onClick={() => setAssistantMessage("Susun storyboard project ini")}>Storyboard</button>
-              <button type="button" onClick={() => setAssistantMessage("Optimalkan SEO YouTube")}>SEO YouTube</button>
-              <button type="button" onClick={() => setAssistantMessage("Optimalkan workflow dengan ADROIT")}>ADROIT</button>
-            </div>
-            <div className="ai-input-row">
-              <input value={assistantMessage} onChange={(event) => setAssistantMessage(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") askAssistant(); }} placeholder="Tulis kebutuhan Anda..." />
-              <button className="primary" type="button" onClick={askAssistant}>Kirim</button>
-            </div>
-            <p className="workspace-note">Body/UI AI Assistant siap. Mesin AI, akun pusat, kredit, dan engine produksi akan disambungkan pada tahap integrasi.</p>
-          </section>
-        </div>
-      )}
-    </main>
-  );
+  return <main className="dash-shell">
+    <nav className="dash-nav"><Link href="/" className="brand"><span className="brand-mark">S</span><span>SALVIAN <b>AI VIDEO</b></span></Link><div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}><span className="user-pill">Saldo Creator</span><button className="secondary-btn" type="button" onClick={()=>setAssistantOpen(true)}><Bot size={16}/> AI Assistant</button></div></nav>
+    <section className="dash-main"><Link href="/projects" className="back"><ArrowLeft size={16}/> Project Library</Link>
+      <div className="dash-head"><div><div className="eyebrow">PROJECT WORKSPACE</div><h1>Ruang kerja video.</h1><p>Project aktif: <strong>{title}</strong></p></div><div style={{display:"flex",gap:10,flexWrap:"wrap"}}><button className="secondary-btn" type="button" onClick={saveWorkspace}><Save size={16}/> {saved?"Tersimpan":"Simpan Draft"}</button><Link href={studioHref} className="primary"><WandSparkles size={16}/> Buka Studio</Link></div></div>
+      <section className="form-card" style={{marginTop:16}}><div className="box-title"><div><div className="eyebrow">AI CREATOR SUITE</div><h2>Asisten produksi</h2></div><span className="ready-pill"><Sparkles size={14}/> AI READY</span></div><div className="workspace-ai-grid"><button className="ai-feature-card" type="button" onClick={()=>setAssistantOpen(true)}><span className="ai-icon"><Bot size={20}/></span><strong>AI Assistant</strong><small>Bantu script, storyboard, audio, visual, subtitle, dan SEO.</small><b>Buka Asisten →</b></button><div className="ai-feature-card pro-card"><span className="ai-icon"><Gem size={20}/></span><strong>PRO</strong><small>Workflow produksi lanjutan, kualitas output tinggi, dan fitur AI premium.</small><b>Fitur Premium</b></div><div className="ai-feature-card adroit-card"><span className="ai-icon"><WandSparkles size={20}/></span><strong>ADROIT</strong><small>Lapisan AI pintar untuk membantu mengoptimalkan workflow project secara otomatis.</small><b>Smart Workflow</b></div></div></section>
+      <div className="workspace-grid" style={{marginTop:16}}><section className="form-card"><div className="eyebrow">PROJECT INFO</div><label htmlFor="project-title">NAMA PROJECT</label><input id="project-title" value={title} onChange={e=>setTitle(e.target.value)} className="workspace-input"/><label>STATUS PRODUKSI</label><div className="status-grid">{statuses.map(item=><button key={item} type="button" onClick={()=>setStatus(item)} className={status===item?"status-choice active":"status-choice"}>{item}</button>)}</div><div className="workspace-meta"><span><Clapperboard size={15}/> {projectCount} project di library</span><span>ID: {projectId}</span><span>Durasi target {duration}</span></div></section><section className="form-card"><div className="eyebrow">PRODUCTION FLOW</div><div className="flow-list">{["Konsep","Script","Storyboard","Audio","Visual","Subtitle","Timeline"].map((step,index)=><Link href={`${studioHref}&tab=${encodeURIComponent(step)}`} key={step} className="flow-item"><span>{String(index+1).padStart(2,"0")}</span><strong>{step}</strong><small>{stepDescription(step)}</small><Play size={14}/></Link>)}</div></section></div>
+      <section className="form-card" style={{marginTop:16}}><div className="box-title"><div><div className="eyebrow">STUDIO CONFIGURATION</div><h2>Ringkasan pengaturan</h2></div><Link href={studioHref} className="secondary-btn"><WandSparkles size={15}/> Edit di Studio</Link></div><div className="workspace-checks"><span>🎙 Voice: <strong>{configSummary?.audio||"Belum diset"}</strong></span><span>🎵 Music: <strong>{configSummary?.music||"Belum diset"}</strong></span><span>🎬 Visual: <strong>{configSummary?.visual||"Belum diset"}</strong></span><span>📷 Camera: <strong>{configSummary?.camera||"Smart"}</strong></span><span>💬 Subtitle: <strong>{configSummary?.subtitle||"Belum diset"}</strong></span><span>⏱ Timeline: <strong>{configSummary?.timeline||"Smart"}</strong></span></div></section>
+      <section className="form-card" style={{marginTop:16}}><div className="box-title"><div><div className="eyebrow">ASSET LIBRARY</div><h2>Asset project</h2></div><label className="secondary-btn upload-label"><Upload size={15}/> Upload Asset<input type="file" accept="image/*,video/*,audio/*" multiple hidden onChange={e=>handleAssets(e.target.files)}/></label></div><div className="asset-grid">{assetCategories.map(asset=><div className="asset-card" key={asset}><div className="asset-placeholder"><FolderOpen size={22}/></div><strong>{asset}</strong><span>{workspaceAssets.length?`${workspaceAssets.length} asset tersimpan`:"Belum ada asset"}</span></div>)}<label className="asset-card asset-add" style={{cursor:"pointer"}}><div className="asset-placeholder"><Plus size={22}/></div><strong>Tambah asset</strong><span>Upload gambar, video, atau audio</span><input type="file" accept="image/*,video/*,audio/*" multiple hidden onChange={e=>handleAssets(e.target.files)}/></label></div>{workspaceAssets.length>0&&<div className="uploaded-list">{workspaceAssets.map((file,i)=><div className="uploaded-item" key={`${file.name}-${i}`}><FolderOpen size={16}/><span><strong>{file.name}</strong><small>{file.type} · {file.size}</small></span><button type="button" className="icon-button" aria-label={`Hapus ${file.name}`} onClick={()=>removeAsset(i)}>×</button></div>)}</div>}</section>
+      <section className="form-card" style={{marginTop:16}}><div className="box-title"><div><div className="eyebrow">MONETIZATION</div><h2>Paket & kredit</h2></div><Gem size={20}/></div><div className="monetization-grid"><div><strong>FREE</strong><span>100 kredit awal · workflow dasar</span><small>Untuk mencoba Salvian AI Video</small></div><div className="premium-plan"><strong>PRO · PREMIUM</strong><span>1.000 kredit / bulan · fitur AI lanjutan</span><small>Pembelian dan saldo dikelola melalui Salvian AI Creator</small><Link href="/pricing" className="primary">Lihat Paket</Link></div></div></section>
+      <section className="form-card" style={{marginTop:16}}><div className="box-title"><div><div className="eyebrow">RENDER CENTER</div><h2>Siapkan output akhir</h2></div><Link href={renderHref} className="primary">Buka Render Center <Play size={15}/></Link></div><div className="workspace-checks"><span>{activeProject?.topic||activeProject?.script?"✓":"○"} Project</span><span>{activeProject?.scenes?.length?"✓":"○"} Storyboard</span><span>{activeProject?.audio?"✓":"○"} Audio</span><span>{activeProject?.visual?"✓":"○"} Visual</span><span>{activeProject?.subtitle?"✓":"○"} Subtitle</span><span>{activeProject?.timeline?"✓":"○"} Timeline</span></div><p className="workspace-note">Saldo kredit dikelola melalui Salvian AI Creator. Pembayaran belum diproses dari halaman ini.</p></section>
+    </section>
+    {assistantOpen&&<div className="ai-modal-backdrop" onClick={()=>setAssistantOpen(false)}><section className="ai-assistant-modal" onClick={e=>e.stopPropagation()}><div className="box-title"><div><div className="eyebrow">SALVIAN AI ASSISTANT</div><h2>Teman produksi project</h2></div><button className="secondary-btn" type="button" onClick={()=>setAssistantOpen(false)}>Tutup</button></div><div className="ai-chat"><div className="ai-bubble"><Bot size={17}/><div><strong>AI Assistant</strong><p>Saya siap membantu project <b>{title}</b>. Mau membuat script, storyboard, voice-over, visual, subtitle, atau SEO?</p></div></div>{assistantReply&&<div className="ai-user-bubble">{assistantReply}</div>}{assistantLoading&&<div className="ai-user-bubble">AI Assistant sedang berpikir…</div>}</div><div className="ai-quick-actions"><button type="button" onClick={()=>quickAsk("Buatkan ide script untuk project ini")}>Buat Script</button><button type="button" onClick={()=>quickAsk("Susun storyboard project ini")}>Storyboard</button><button type="button" onClick={()=>quickAsk("Optimalkan SEO YouTube")}>SEO YouTube</button><button type="button" onClick={()=>quickAsk("Optimalkan workflow dengan ADROIT")}>ADROIT</button></div><div className="ai-input-row"><input value={assistantInput} onChange={e=>setAssistantInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void askAssistant();}} placeholder="Tulis kebutuhan Anda..." disabled={assistantLoading}/><button className="primary" type="button" onClick={()=>void askAssistant()} disabled={assistantLoading||!assistantInput.trim()}>{assistantLoading?"Memproses…":"Kirim"}</button></div><p className="workspace-note">AI Assistant sekarang terhubung ke endpoint server. Tanpa OPENAI_API_KEY tetap ada mode fallback; dengan OPENAI_API_KEY jawaban diproses oleh model AI.</p></section></div>}
+  </main>;
 }
