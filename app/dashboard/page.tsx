@@ -5,6 +5,16 @@ import { ArrowRight, Clapperboard, FolderOpen, Sparkles, WalletCards } from "luc
 import { useEffect, useMemo, useState } from "react";
 import { readActiveProject, readProjects, type VideoProject } from "../../lib/project-store";
 
+const PROFILE_KEY = "salvian-video-account-profile";
+
+function readCachedCredits() {
+  try {
+    const cached = localStorage.getItem(PROFILE_KEY);
+    if (!cached) return "—";
+    return Number(JSON.parse(cached)?.credits || 0).toLocaleString("id-ID");
+  } catch { return "—"; }
+}
+
 export default function Dashboard() {
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
   const [projects, setProjects] = useState<VideoProject[]>([]);
@@ -13,20 +23,30 @@ export default function Dashboard() {
   useEffect(() => {
     setActiveProject(readActiveProject());
     setProjects(readProjects());
-    try {
-      const cached = localStorage.getItem("salvian-video-account-profile");
-      if (cached) setCredits(Number(JSON.parse(cached)?.credits || 0).toLocaleString("id-ID"));
-    } catch {}
+    setCredits(readCachedCredits());
+
+    const syncProfile = (p: any) => {
+      if (!p) return;
+      setCredits(Number(p.credits || 0).toLocaleString("id-ID"));
+      try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+    };
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== "https://salvian-ai-creator.vercel.app") return;
       if (event.data?.type !== "SALVIAN_ACCOUNT_PROFILE") return;
-      const p = event.data.profile;
-      if (!p) return;
-      setCredits(Number(p.credits || 0).toLocaleString("id-ID"));
-      try { localStorage.setItem("salvian-video-account-profile", JSON.stringify(p)); } catch {}
+      syncProfile(event.data.profile);
     };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === PROFILE_KEY) setCredits(readCachedCredits());
+    };
+    const onPageShow = () => setCredits(readCachedCredits());
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pageshow", onPageShow);
+    };
   }, []);
 
   const recentProjects = useMemo(() => projects.slice(0, 5), [projects]);
