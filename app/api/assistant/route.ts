@@ -36,10 +36,6 @@ function fallback(message: string, projectTitle?: string) {
   return `Saya menerima pertanyaan Anda: “${text}”\n\nSaya siap membantu project ${project} pada script, storyboard, voice-over, visual, subtitle, timeline, dan SEO YouTube.\n\nSaat koneksi model AI produksi belum tersedia, saya tetap bisa memberikan panduan kerja langsung dari mode bantuan lokal ini. Untuk jawaban AI generatif penuh, deployment harus memiliki OPENAI_API_KEY yang valid.`;
 }
 
-function looksLikeOpenAIKey(value: string) {
-  return value.startsWith("sk-") && value.length > 20 && !value.toLowerCase().startsWith("postgres");
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -49,7 +45,7 @@ export async function POST(request: Request) {
     if (!message) return NextResponse.json({ error: "Pesan wajib diisi." }, { status: 400 });
 
     const apiKey = process.env.OPENAI_API_KEY?.trim() || "";
-    if (!looksLikeOpenAIKey(apiKey)) {
+    if (!apiKey) {
       return NextResponse.json({ ok: true, mode: "fallback", reply: fallback(message, projectTitle) });
     }
 
@@ -58,13 +54,13 @@ export async function POST(request: Request) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-5-mini",
+        model: process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || "gpt-5.6-luna",
         input: [
           {
             role: "system",
             content: [{
               type: "input_text",
-              text: "Anda adalah SALVIAN AI ASSISTANT untuk SALVIAN AI VIDEO. Jawab dalam bahasa Indonesia secara ringkas, praktis, dan langsung bisa dipakai. Bantu pengguna membuat dan memperbaiki script, storyboard, voice-over, visual, subtitle, timeline, SEO YouTube, serta workflow project. Jangan mengaku sudah menjalankan engine, merender video, menyimpan file, atau mengubah project jika tindakan itu belum benar-benar dilakukan."
+              text: "Anda adalah SALVIAN AI ASSISTANT untuk SALVIAN AI VIDEO. Jawab dalam bahasa Indonesia secara ringkas, praktis, dan langsung bisa dipakai. Bantu pengguna membuat dan memperbaiki konsep, script, storyboard, voice-over, visual, subtitle, timeline, SEO YouTube, serta workflow project. Gunakan konteks project yang diberikan bila relevan. Jangan mengaku sudah menjalankan engine, merender video, menyimpan file, atau mengubah project jika tindakan itu belum benar-benar dilakukan."
             }]
           },
           { role: "user", content: [{ type: "input_text", text: message + context }] }
