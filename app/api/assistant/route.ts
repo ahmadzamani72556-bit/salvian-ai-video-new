@@ -64,32 +64,46 @@ export async function POST(request: Request) {
       .map((item: { role: "user" | "assistant"; content: string }) => ({ role: item.role, content: item.content.slice(0, 5000) }));
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
-    if (!apiKey) return NextResponse.json({ ok: true, mode: "fallback", reply: localFallback(message, projectTitle) });
-
-    const context = projectContext ? `\n\nKonteks project saat ini:\n${projectContext}` : "";
-    const input = [...safeHistory, { role: "user" as const, content: message.slice(0, 5000) + context }];
-    const model = (process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || process.env.OPENAI_MODEL || "gpt-5.6-luna").trim();
     const auth = request.headers.get("authorization");
-
-    try {
-      const client = new OpenAI({ apiKey });
-      const response = await client.responses.create({
-        model,
-        instructions: SYSTEM_PROMPT,
-        input,
-        max_output_tokens: 1000,
-      });
-      const reply = response.output_text?.trim() || "";
-      if (!reply) throw new Error("AI tidak menghasilkan jawaban.");
-      return NextResponse.json({ ok: true, mode: "openai", reply, model });
-    } catch (error: any) {
-      if (isBillingError(error) && auth) {
+    if (!apiKey) {
+      if (auth) {
         try {
           const creator = await callCreatorAssistant(auth, message, safeHistory);
           if (creator.response.ok) {
             const reply = String(creator.data?.text || creator.data?.output_text || creator.data?.response || "").trim();
             if (reply) return NextResponse.json({ ok: true, mode: "creator-fallback", reply });
           }
+        } catch (error) {
+          console.error("Creator Assistant fallback error", error);
+        }
+      }
+      return NextResponse.json({ ok: true, mode: "fallback", reply: localFallback(message, projectTitle) });
+    }
+
+    const context = projectContext ? `\n\nKonteks project saat ini:\n${projectContext}` : "";
+    const input = [...safeHistory, { role: "user" as const, content: message.slice(0, 5000) + context }];
+    const model = (process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || process.env.OPENAI_MODEL || "gpt-5.6-luna").trim();
+
+    try {
+      const client = new OpenAI({ apiKey });
+      const response = await client.responses.create({ model, instructions: SYSTEM_PROMPT, input, max_output_tokens: 1000 });
+      const reply = response.output_text?.trim() || "";
+      if (!reply) throw new Error("AI tidak menghasilkan jawaban.");
+      return NextResponse.json({ ok: true, mode: "openai", reply, model });
+    } catch (error: any) {
+      console.error("SALVIAN AI VIDEO Assistant OpenAI error", error);
+
+      // Samakan perilaku dengan SALVIAN AI MUSIC: bila jalur OpenAI lokal
+      // bermasalah (billing, model, project, permission, atau konfigurasi),
+      // teruskan ke Assistant Creator PRO yang sudah terbukti aktif.
+      if (auth) {
+        try {
+          const creator = await callCreatorAssistant(auth, message, safeHistory);
+          if (creator.response.ok) {
+            const reply = String(creator.data?.text || creator.data?.output_text || creator.data?.response || "").trim();
+            if (reply) return NextResponse.json({ ok: true, mode: "creator-fallback", reply });
+          }
+          console.error("Creator Assistant fallback returned", creator.response.status, creator.data?.error || "no response");
         } catch (fallbackError) {
           console.error("Creator Assistant fallback error", fallbackError);
         }
@@ -98,7 +112,6 @@ export async function POST(request: Request) {
       if (isBillingError(error)) {
         return NextResponse.json({ ok: true, mode: "fallback", reply: localFallback(message, projectTitle) });
       }
-      console.error("SALVIAN AI VIDEO Assistant OpenAI error", error);
       return NextResponse.json({ error: "AI Assistant sedang mengalami gangguan. Coba lagi." }, { status: 502 });
     }
   } catch (error) {
