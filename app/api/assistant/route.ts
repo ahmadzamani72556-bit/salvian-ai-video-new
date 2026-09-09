@@ -31,6 +31,15 @@ function isBillingError(error: any) {
   return status === 429 || code === "billing_not_active" || code === "insufficient_quota" || code === "credit_balance_exhausted" || code === "organization_usage_limit_exceeded" || code === "organization_spend_limit_exceeded" || code === "project_spend_limit_exceeded" || /billing|insufficient.?quota|credit.?balance|no credits|quota/.test(message);
 }
 
+function errorSummary(error: any) {
+  return {
+    status: Number(error?.status || error?.statusCode || 0),
+    code: String(error?.code || ""),
+    type: String(error?.type || ""),
+    message: String(error?.message || "").slice(0, 500),
+  };
+}
+
 async function callCreatorAssistant(auth: string, message: string, history: unknown[]) {
   const response = await fetch(CREATOR_ASSISTANT_URL, {
     method: "POST",
@@ -42,6 +51,59 @@ async function callCreatorAssistant(auth: string, message: string, history: unkn
   let data: any = {};
   try { data = JSON.parse(raw); } catch {}
   return { response, data };
+}
+
+async function callOpenAIRaw(apiKey: string, model: string, instructions: string, input: unknown[]) {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ model, instructions, input }),
+    cache: "no-store",
+  });
+  const raw = await response.text();
+  let data: any = {};
+  try { data = JSON.parse(raw); } catch {}
+  if (!response.ok) {
+    const err: any = new Error(String(data?.error?.message || `OpenAI HTTP ${response.status}`));
+    err.status = response.status;
+    err.code = data?.error?.code;
+    err.type = data?.error?.type;
+    throw err;
+  }
+  const text = String(data?.output_text || "").trim();
+  if (!text) throw new Error("AI tidak menghasilkan jawaban melalui Responses API.");
+  return text;
+}
+
+async function callOpenAI(apiKey: string, model: string, input: unknown[]) {
+  let sdkError: any = null;
+  try {
+    const client = new OpenAI({ apiKey });
+    const response = await client.responses.create({
+      model,
+      instructions: SYSTEM_PROMPT,
+      input,
+    });
+    const reply = response.output_text?.trim() || "";
+    if (reply) return { reply, transport: "sdk" as const };
+    throw new Error("AI tidak menghasilkan jawaban melalui SDK.");
+  } catch (error: any) {
+    sdkError = error;
+    console.error("SALVIAN AI VIDEO Assistant SDK error", errorSummary(error));
+  }
+
+  try {
+    const reply = await callOpenAIRaw(apiKey, model, SYSTEM_PROMPT, input);
+    return { reply, transport: "raw" as const };
+  } catch (rawError: any) {
+    console.error("SALVIAN AI VIDEO Assistant raw Responses API error", errorSummary(rawError));
+    rawError.sdkError = errorSummary(sdkError);
+    throw rawError;
+  }
 }
 
 export async function POST(request: Request) {
@@ -75,7 +137,7 @@ export async function POST(request: Request) {
             if (reply) return NextResponse.json({ ok: true, mode: "creator-fallback", reply });
           }
         } catch (error) {
-          console.error("Creator Assistant fallback error", error);
+          console.error("Creator Assistant fallback error", errorSummary(error));
         }
       }
       return NextResponse.json({ ok: true, mode: "fallback", reply: localFallback(message, projectTitle) });
@@ -83,26 +145,14 @@ export async function POST(request: Request) {
 
     const context = projectContext ? `\n\nKonteks project saat ini:\n${projectContext}` : "";
     const input = [...safeHistory, { role: "user" as const, content: message + context }];
-
-    // Samakan konfigurasi inti dengan SALVIAN AI CREATOR PRO.
-    // OPENAI_MODEL lama di Video tidak lagi mengambil alih konfigurasi Assistant.
     const model = (process.env.OPENAI_ASSISTANT_MODEL || process.env.OPENAI_TEXT_MODEL || "gpt-5.6-luna").trim();
 
     try {
-      const client = new OpenAI({ apiKey });
-      const response = await client.responses.create({
-        model,
-        instructions: SYSTEM_PROMPT,
-        input,
-      });
-      const reply = response.output_text?.trim() || "";
-      if (!reply) throw new Error("AI tidak menghasilkan jawaban.");
-      return NextResponse.json({ ok: true, mode: "openai", reply, model });
+      const result = await callOpenAI(apiKey, model, input);
+      return NextResponse.json({ ok: true, mode: "openai", transport: result.transport, reply: result.reply, model });
     } catch (error: any) {
-      console.error("SALVIAN AI VIDEO Assistant OpenAI error", error);
+      console.error("SALVIAN AI VIDEO Assistant OpenAI final error", errorSummary(error));
 
-      // Jalur cadangan yang sama seperti pola SALVIAN AI MUSIC:
-      // gunakan Assistant Creator PRO yang sudah terbukti aktif.
       if (auth) {
         try {
           const creator = await callCreatorAssistant(auth, message, safeHistory);
@@ -110,19 +160,20 @@ export async function POST(request: Request) {
             const reply = String(creator.data?.text || creator.data?.output_text || creator.data?.response || "").trim();
             if (reply) return NextResponse.json({ ok: true, mode: "creator-fallback", reply });
           }
-          console.error("Creator Assistant fallback returned", creator.response.status, creator.data?.error || "no response");
+          console.error("Creator Assistant fallback returned", creator.response.status, String(creator.data?.error || "no response").slice(0, 300));
         } catch (fallbackError) {
-          console.error("Creator Assistant fallback error", fallbackError);
+          console.error("Creator Assistant fallback error", errorSummary(fallbackError));
         }
       }
 
       if (isBillingError(error)) {
         return NextResponse.json({ ok: true, mode: "fallback", reply: localFallback(message, projectTitle) });
       }
-      return NextResponse.json({ error: "AI Assistant sedang mengalami gangguan. Coba lagi." }, { status: 502 });
+
+      return NextResponse.json({ error: "AI Assistant sedang mengalami gangguan. Periksa konfigurasi OPENAI_API_KEY dan model Assistant di deployment Video." }, { status: 502 });
     }
   } catch (error) {
-    console.error("SALVIAN AI VIDEO Assistant error", error);
+    console.error("SALVIAN AI VIDEO Assistant error", errorSummary(error));
     return NextResponse.json({ error: "AI Assistant tidak dapat memproses permintaan." }, { status: 500 });
   }
 }
