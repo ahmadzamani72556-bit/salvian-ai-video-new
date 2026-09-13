@@ -4,10 +4,6 @@ import { RefreshCw, WalletCards } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 const CREATOR_ORIGIN = 'https://salvian-ai-creator.vercel.app';
-const CREATOR_ORIGINS = new Set([
-  CREATOR_ORIGIN,
-  'https://www.salvian-ai-creator.vercel.app',
-]);
 const PROFILE_KEY = 'salvian-video-account-profile';
 
 type Profile = { display_name?: string; email?: string; plan?: string; credits?: number };
@@ -16,21 +12,12 @@ function normalizeProfile(value: unknown): Profile | null {
   if (!value || typeof value !== 'object') return null;
   const p = value as Record<string, unknown>;
   const credits = Number(p.credits);
-  if (!Number.isFinite(credits)) return null;
   return {
     display_name: typeof p.display_name === 'string' ? p.display_name : 'Pengguna Salvian',
     email: typeof p.email === 'string' ? p.email : '',
     plan: typeof p.plan === 'string' ? p.plan : 'FREE',
-    credits: Math.max(0, credits),
+    credits: Number.isFinite(credits) ? Math.max(0, credits) : 0,
   };
-}
-
-function extractProfile(data: unknown): Profile | null {
-  if (!data || typeof data !== 'object') return null;
-  const message = data as Record<string, unknown>;
-  return normalizeProfile(
-    message.profile ?? message.account ?? message.user ?? message.data ?? message,
-  );
 }
 
 export default function CreatorCreditWidget() {
@@ -48,15 +35,10 @@ export default function CreatorCreditWidget() {
     } catch {}
 
     const onMessage = (event: MessageEvent) => {
-      if (!CREATOR_ORIGINS.has(event.origin)) return;
+      if (event.origin !== CREATOR_ORIGIN) return;
       const data = event.data;
-      if (
-        data?.type !== 'SALVIAN_ACCOUNT_PROFILE' &&
-        data?.type !== 'SALVIAN_ACCOUNT_AUTHENTICATED' &&
-        data?.type !== 'SALVIAN_PROFILE' &&
-        data?.type !== 'SALVIAN_ACCOUNT'
-      ) return;
-      const next = extractProfile(data);
+      if (data?.type !== 'SALVIAN_ACCOUNT_PROFILE' && data?.type !== 'SALVIAN_ACCOUNT_AUTHENTICATED') return;
+      const next = normalizeProfile(data.profile);
       if (!next) return;
       setProfile(next);
       setBusy(false);
@@ -84,7 +66,7 @@ export default function CreatorCreditWidget() {
 
     const popup = window.open(
       creatorUrl.toString(),
-      `salvianCreatorAccount_${Date.now()}`,
+      'salvianCreatorAccount',
       'popup,width=520,height=820,resizable=yes,scrollbars=yes',
     );
 
@@ -95,19 +77,17 @@ export default function CreatorCreditWidget() {
     }
 
     popupRef.current = popup;
-    try { popup.focus(); } catch {}
 
+    // Also request the profile after opening. This covers the important case
+    // where the Creator account was already logged in and no new login event
+    // occurs to trigger the original profile message.
     const requestProfile = () => {
-      try {
-        popup.postMessage({ type: 'SALVIAN_REQUEST_ACCOUNT_PROFILE' }, CREATOR_ORIGIN);
-        popup.postMessage({ type: 'SALVIAN_REQUEST_PROFILE' }, CREATOR_ORIGIN);
-      } catch {}
+      try { popup.postMessage({ type: 'SALVIAN_REQUEST_ACCOUNT_PROFILE' }, CREATOR_ORIGIN); } catch {}
     };
-    window.setTimeout(requestProfile, 250);
-    window.setTimeout(requestProfile, 900);
-    window.setTimeout(requestProfile, 1800);
-    window.setTimeout(requestProfile, 3500);
-    window.setTimeout(requestProfile, 7000);
+    window.setTimeout(requestProfile, 700);
+    window.setTimeout(requestProfile, 1500);
+    window.setTimeout(requestProfile, 3000);
+    window.setTimeout(requestProfile, 5000);
 
     pollRef.current = setInterval(() => {
       if (popup.closed) {
