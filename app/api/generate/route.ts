@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { productionEngine } from "../../../lib/production-engine";
+import { getVideoCreditCost } from "../../../lib/credit-pricing";
 
 const durations = [5, 6, 7, 8];
 const styles = ["Cinematic", "Documentary", "Realistic", "Anime", "Islamic Elegant"];
@@ -31,9 +32,9 @@ export async function POST(request: Request) {
     const autoSubtitle = body.autoSubtitle !== false;
     const smartPacing = body.smartPacing !== false;
 
-    // Credit is intentionally consumed by the central Creator bridge, not a local Video wallet.
-    // This API only generates the production package after the UI has successfully authorized the charge.
-    const creditCost = 100 + duration * 25;
+    // FINAL pricing: one long-form production consumes one fixed Creator
+    // transaction. No local Video wallet and no second render charge.
+    const creditCost = getVideoCreditCost(duration);
     const result = await productionEngine.generate({
       topic,
       duration,
