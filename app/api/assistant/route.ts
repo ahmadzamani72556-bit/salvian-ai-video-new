@@ -40,7 +40,7 @@ function errorSummary(error: any) {
   };
 }
 
-async function callCreatorAssistant(auth: string, message: string, history: unknown[]) {
+async function callCreatorAssistant(auth: string, message: string, history: any[]) {
   const response = await fetch(CREATOR_ASSISTANT_URL, {
     method: "POST",
     headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json" },
@@ -53,7 +53,7 @@ async function callCreatorAssistant(auth: string, message: string, history: unkn
   return { response, data };
 }
 
-async function callOpenAIRaw(apiKey: string, model: string, instructions: string, input: unknown[]) {
+async function callOpenAIRaw(apiKey: string, model: string, instructions: string, input: any[]) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -79,7 +79,7 @@ async function callOpenAIRaw(apiKey: string, model: string, instructions: string
   return text;
 }
 
-async function callOpenAI(apiKey: string, model: string, input: unknown[]) {
+async function callOpenAI(apiKey: string, model: string, input: any[]) {
   let sdkError: any = null;
   try {
     const client = new OpenAI({ apiKey });
