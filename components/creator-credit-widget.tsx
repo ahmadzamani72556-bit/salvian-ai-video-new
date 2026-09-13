@@ -4,7 +4,6 @@ import { RefreshCw, WalletCards } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 const CREATOR_ORIGIN = 'https://salvian-ai-creator.vercel.app';
-const CREATOR_ACCOUNT = `${CREATOR_ORIGIN}/akun.html?from=video&bridge=1`;
 const PROFILE_KEY = 'salvian-video-account-profile';
 
 type Profile = { display_name?: string; email?: string; plan?: string; credits?: number };
@@ -26,6 +25,7 @@ export default function CreatorCreditWidget() {
   const [busy, setBusy] = useState(false);
   const popupRef = useRef<Window | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     try {
@@ -44,6 +44,7 @@ export default function CreatorCreditWidget() {
       setBusy(false);
       popupRef.current = null;
       if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       try { localStorage.setItem(PROFILE_KEY, JSON.stringify(next)); } catch {}
     };
 
@@ -51,45 +52,78 @@ export default function CreatorCreditWidget() {
     return () => {
       window.removeEventListener('message', onMessage);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
 
   function syncCredits() {
     setBusy(true);
     const returnTo = window.location.href;
-    const url = new URL(CREATOR_ACCOUNT);
-    url.searchParams.set('returnTo', returnTo);
+    const creatorUrl = new URL(`${CREATOR_ORIGIN}/akun.html`);
+    creatorUrl.searchParams.set('from', 'video');
+    creatorUrl.searchParams.set('bridge', '1');
+    creatorUrl.searchParams.set('returnTo', returnTo);
 
-    // Preserve the old active flow: Video NEW opens Creator's account page
-    // with from=video, bridge=1 and a validated returnTo URL.
-    const popup = window.open(url.toString(), 'salvianCreatorAccount', 'popup,width=520,height=820,resizable=yes,scrollbars=yes');
+    const popup = window.open(
+      creatorUrl.toString(),
+      'salvianCreatorAccount',
+      'popup,width=520,height=820,resizable=yes,scrollbars=yes',
+    );
+
     if (!popup) {
       setBusy(false);
-      window.location.href = url.toString();
+      window.location.href = creatorUrl.toString();
       return;
     }
+
     popupRef.current = popup;
+
+    // Also request the profile after opening. This covers the important case
+    // where the Creator account was already logged in and no new login event
+    // occurs to trigger the original profile message.
+    const requestProfile = () => {
+      try { popup.postMessage({ type: 'SALVIAN_REQUEST_ACCOUNT_PROFILE' }, CREATOR_ORIGIN); } catch {}
+    };
+    window.setTimeout(requestProfile, 700);
+    window.setTimeout(requestProfile, 1500);
+    window.setTimeout(requestProfile, 3000);
+    window.setTimeout(requestProfile, 5000);
+
+    pollRef.current = setInterval(() => {
+      if (popup.closed) {
+        setBusy(false);
+        popupRef.current = null;
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      }
+    }, 500);
 
     timeoutRef.current = setTimeout(() => {
       setBusy(false);
       timeoutRef.current = null;
-      popupRef.current = null;
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (popupRef.current?.closed) popupRef.current = null;
     }, 30000);
   }
 
   const credits = profile ? Number(profile.credits || 0).toLocaleString('id-ID') : null;
   const plan = profile?.plan || null;
+  const label = credits === null ? 'Saldo Creator' : `${credits} kredit`;
+  const sublabel = busy ? 'Menghubungkan…' : (plan || 'Ketuk untuk login & sinkronkan');
 
   return (
-    <button type="button" onClick={syncCredits} disabled={busy}
+    <button
+      type="button"
+      onClick={syncCredits}
+      disabled={busy}
       aria-label="Buka SALVIAN AI CREATOR untuk login dan sinkronkan saldo"
-      style={{ display:'inline-flex', alignItems:'center', gap:8, border:'1px solid #294260', background:'#071321', color:'#eef5ff', borderRadius:12, padding:'9px 12px', cursor:busy?'wait':'pointer', font:'inherit', boxShadow:'0 8px 24px #0005' }}>
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid #294260', background: '#071321', color: '#eef5ff', borderRadius: 12, padding: '9px 12px', cursor: busy ? 'wait' : 'pointer', font: 'inherit', boxShadow: '0 8px 24px #0005' }}
+    >
       <WalletCards size={16} />
-      <span style={{display:'grid', textAlign:'left', lineHeight:1.15}}>
-        <strong style={{fontSize:12}}>{credits === null ? 'Saldo Creator' : `${credits} kredit`}</strong>
-        <small style={{fontSize:10, color:credits === null ? '#ffcc70' : '#8fa2bd'}}>{busy ? 'Menghubungkan…' : (plan || 'Ketuk untuk login & sinkronkan')}</small>
+      <span style={{ display: 'grid', textAlign: 'left', lineHeight: 1.15 }}>
+        <strong style={{ fontSize: 12 }}>{label}</strong>
+        <small style={{ fontSize: 10, color: credits === null ? '#ffcc70' : '#8fa2bd' }}>{sublabel}</small>
       </span>
-      <RefreshCw size={13} style={{opacity:.75}} />
+      <RefreshCw size={13} style={{ opacity: 0.75 }} />
     </button>
   );
 }
