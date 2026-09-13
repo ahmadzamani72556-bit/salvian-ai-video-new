@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { buildAudioConfig, buildSubtitleConfig, buildTimelineConfig, buildVisualConfig } from "../../lib/studio-config";
 import { createProjectId, readActiveProject, readProject, saveActiveProject, type AudioConfig, type SubtitleConfig, type TimelineConfig, type VideoProject, type VisualConfig } from "../../lib/project-store";
 import { consumeCreatorCredits, refundCreatorCredits } from "../../lib/creator-bridge";
+import { getVideoCreditCost } from "../../lib/credit-pricing";
 
 type Scene={number:number;title:string;visual:string;duration:number;voice:string};
 type Project={title:string;duration:number;status:string;hook?:string;script?:string;scenes?:Scene[]};
@@ -14,7 +15,7 @@ type Asset={name:string;type:string;size:string};
 const stages=[['Script AI',WandSparkles,'Script'],['Storyboard',Layers3,'Storyboard'],['Voice-over',Mic2,'Audio'],['Visual',ImageIcon,'Visual'],['Music',Music2,'Audio'],['Subtitle',Subtitles,'Subtitle'],['Render',Film,'Timeline']] as const;
 const tabs=['Konsep','Script','Storyboard','Audio','Visual','Subtitle','Timeline'];
 const durations=[5,6,7,8];
-const creditCostForDuration=(minutes:number)=>100+minutes*25;
+const creditCostForDuration=(minutes:number)=>getVideoCreditCost(minutes);
 const defaultScenes:Scene[]=[{number:1,title:'Opening / Hook',visual:'Cinematic establishing shot, subject utama, title overlay.',duration:35,voice:'Pembuka kuat dan menarik perhatian penonton.'},{number:2,title:'Konteks Masalah',visual:'B-roll relevan dengan topik, medium shots dan detail.',duration:55,voice:'Jelaskan konteks dan masalah dengan bahasa sederhana.'},{number:3,title:'Pembahasan Utama',visual:'Sequence visual utama dengan variasi angle dan pacing.',duration:75,voice:'Masuk ke inti pembahasan dan berikan contoh.'},{number:4,title:'Insight / Turning Point',visual:'Visual emosional, close-up, cinematic transition.',duration:60,voice:'Sampaikan insight penting yang menjadi titik balik.'},{number:5,title:'Kesimpulan',visual:'Montage penutup, visual yang tenang dan memorable.',duration:45,voice:'Rangkum pesan utama dan ajak penonton bertindak.'}];
 function normalizeScenes(items:Scene[]|undefined){return Array.isArray(items)&&items.length?items.map((s,i)=>({number:i+1,title:s.title||`Scene ${i+1}`,visual:s.visual||'',duration:Number(s.duration)||30,voice:s.voice||''})):defaultScenes;}
 function formatBytes(bytes:number){if(bytes<1024)return `${bytes} B`;if(bytes<1024*1024)return `${Math.round(bytes/1024)} KB`;return `${(bytes/1024/1024).toFixed(1)} MB`;}
