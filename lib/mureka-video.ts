@@ -38,9 +38,10 @@ function findVideoUrl(value: any): string | undefined {
 }
 
 /**
- * The long-form render is owned by SALVIAN AI CREATOR. Video NEW only polls
- * the task here; it never falls back to a short-clip provider for a 5–8 minute
- * request.
+ * Long-form status bridge. The endpoint belongs to the proven SALVIAN long-form
+ * engine; this module does not call Mureka's short-clip API and does not create
+ * or regenerate video clips. The filename is retained for compatibility with
+ * the existing Video NEW route.
  */
 export async function queryMurekaVideoTask(taskId: string): Promise<MurekaVideoTaskResult> {
   const apiKey = process.env.SALVIAN_LONG_VIDEO_RENDER_KEY?.trim();
@@ -60,11 +61,14 @@ export async function queryMurekaVideoTask(taskId: string): Promise<MurekaVideoT
   }
 
   const task = data.task || data.data?.task || data.data || data;
-  const id = String(task?.id || task?.task_id || taskId);
+  const id = String(task?.id || task?.task_id || taskId).trim();
   const status = normalizeStatus(task?.status || data.status);
-  const outputUrl = findVideoUrl(task?.content) || findVideoUrl(task?.output) || findVideoUrl(task?.result) || findVideoUrl(task?.video) || findVideoUrl(task) || findVideoUrl(data.output) || findVideoUrl(data.result);
-  const progress = status === "succeeded" ? 100 : Number.isFinite(Number(task?.progress ?? data.progress)) ? Number(task?.progress ?? data.progress) : status === "running" ? 50 : 5;
+  const outputUrl = findVideoUrl(task?.content) || findVideoUrl(task?.output) || findVideoUrl(task?.result) || findVideoUrl(task?.video) || findVideoUrl(data.output) || findVideoUrl(data.result) || findVideoUrl(data.video);
+  const progress = status === "succeeded" ? 100 : Number.isFinite(Number(task?.progress ?? data.progress)) ? Math.min(99, Math.max(0, Number(task?.progress ?? data.progress))) : status === "running" ? 50 : 5;
   const errorMessage = task?.error?.message || task?.error?.detail || data?.error?.message || data?.error;
+
+  if (!id) throw new Error("Engine long-form mengembalikan status tanpa task ID yang valid.");
+  if (status === "succeeded" && !outputUrl) throw new Error(`Render ${id} selesai tetapi URL MP4 belum tersedia.`);
 
   return {
     id,
