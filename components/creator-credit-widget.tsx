@@ -3,8 +3,10 @@
 import { RefreshCw, WalletCards } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+// Versioned key prevents an old cached balance (for example 8.650) from
+// being shown after the Creator server balance has changed.
+const PROFILE_KEY = 'salvian-video-account-profile-v2';
 const CREATOR_ORIGIN = 'https://salvian-ai-creator.vercel.app';
-const PROFILE_KEY = 'salvian-video-account-profile';
 
 type Profile = { display_name?: string; email?: string; plan?: string; credits?: number };
 
@@ -28,11 +30,9 @@ export default function CreatorCreditWidget() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PROFILE_KEY);
-      const saved = raw ? normalizeProfile(JSON.parse(raw)) : null;
-      if (saved) setProfile(saved);
-    } catch {}
+    // Do not hydrate from the legacy cache. The first displayed balance must
+    // come from a fresh Creator profile message.
+    try { localStorage.removeItem('salvian-video-account-profile'); } catch {}
 
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== CREATOR_ORIGIN) return;
@@ -75,9 +75,6 @@ export default function CreatorCreditWidget() {
     creatorUrl.searchParams.set('bridge', '1');
     creatorUrl.searchParams.set('returnTo', returnTo);
 
-    // Always create a fresh popup. Reusing a named popup can preserve an old
-    // window.opener, which can make Creator send the profile to a stale Video
-    // tab instead of the page the user is currently using.
     try {
       const stale = window.open('', 'salvianCreatorAccount');
       if (stale && !stale.closed && stale !== window) stale.close();
@@ -125,7 +122,7 @@ export default function CreatorCreditWidget() {
   const credits = profile ? Number(profile.credits || 0).toLocaleString('id-ID') : null;
   const plan = profile?.plan || null;
   const label = credits === null ? 'Saldo Creator' : `${credits} kredit`;
-  const sublabel = busy ? 'Menghubungkan…' : (plan || 'Ketuk untuk login & sinkronkan');
+  const sublabel = busy ? 'Menghubungkan…' : (plan || 'Ketuk untuk sinkronkan saldo');
 
   return (
     <button
