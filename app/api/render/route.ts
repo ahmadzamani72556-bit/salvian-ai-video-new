@@ -20,6 +20,10 @@ export async function POST(request:Request){
   if(readyCount<5)return NextResponse.json({error:"Project belum siap untuk antrean render.",readiness,readyCount},{status:409});
   const jobId=`render-${crypto.randomUUID()}`,now=new Date().toISOString();
   const engineResult=await renderEngine.submit({jobId,projectId:project.id,projectTitle:project.title,project,settings});
-  return NextResponse.json({renderJob:{id:jobId,projectId:project.id,projectTitle:project.title,status:engineResult.status,stage:engineResult.stage,progress:engineResult.progress,settings,readiness,createdAt:now,updatedAt:now,engine:engineResult.engine,output:engineResult.output,message:engineResult.message}},{status:202});
+  const renderJob={id:jobId,projectId:project.id,projectTitle:project.title,status:engineResult.status,stage:engineResult.stage,progress:engineResult.progress,settings,readiness,createdAt:now,updatedAt:now,engine:engineResult.engine,output:engineResult.output,message:engineResult.message,providerTaskId:engineResult.providerTaskId};
+  // A provider/configuration failure must not be reported as a successful queue.
+  // This lets the Studio show the real problem and prevents a false "queued" state.
+  const httpStatus=engineResult.status==="failed"||engineResult.status==="timeouted"?503:202;
+  return NextResponse.json({renderJob},{status:httpStatus});
  }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Permintaan render tidak dapat diproses."},{status:400});}
 }
