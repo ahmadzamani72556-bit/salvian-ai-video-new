@@ -54,46 +54,6 @@ function findOutputUrl(value: any): string | undefined {
   return undefined;
 }
 
-function buildMurekaPrompt(request: RenderEngineRequest) {
-  const project = request.project || {};
-  const scenes = Array.isArray(project.scenes) ? project.scenes : [];
-  const sceneText = scenes.map((scene: any, index: number) => {
-    const visual = typeof scene?.visual === "string" ? scene.visual : "";
-    const voice = typeof scene?.voice === "string" ? scene.voice : "";
-    const duration = Number(scene?.duration) || 0;
-    return `Scene ${index + 1}${duration ? ` (${duration}s)` : ""}: ${visual}${voice ? ` Narration: ${voice}` : ""}`;
-  }).filter(Boolean).join("\n");
-  const script = typeof project.script === "string" ? project.script.trim() : "";
-  const style = typeof project.style === "string" ? project.style : "Cinematic";
-  const title = request.projectTitle || "SALVIAN AI VIDEO";
-  const ratio = typeof project.ratio === "string" && project.ratio ? project.ratio : "16:9";
-  return [
-    `Create a complete cinematic video for the project titled "${title}".`,
-    `Visual style: ${style}. Aspect ratio: ${ratio}.`,
-    script ? `Narrative/script:\n${script}` : "",
-    sceneText ? `Storyboard:\n${sceneText}` : "",
-    "Use coherent characters, locations, lighting and camera movement across the video. Make the visuals follow the narrative and feel like a finished production."
-  ].filter(Boolean).join("\n\n");
-}
-
-function buildMurekaPayload(request: RenderEngineRequest) {
-  const project = request.project || {};
-  const requestedDuration = Number(project.duration);
-  const durationSeconds = Number.isFinite(requestedDuration) && requestedDuration > 0 ? Math.round(requestedDuration) : 5;
-  const ratio = typeof project.ratio === "string" && project.ratio ? project.ratio : "16:9";
-  const resolution = request.settings.resolution === "4K" ? "1080p" : request.settings.resolution || "720p";
-  return {
-    model: process.env.MUREKA_VIDEO_MODEL?.trim() || "doubao-seedance-2-5-260628",
-    content: [{ type: "text", text: buildMurekaPrompt(request) }],
-    duration: durationSeconds,
-    execution_expires_after: 3600,
-    generate_audio: true,
-    priority: 0,
-    ratio,
-    resolution,
-  };
-}
-
 async function submitCreatorLongForm(request: RenderEngineRequest, url: string, apiKey?: string): Promise<RenderEngineResult> {
   const response = await fetch(url, {
     method: "POST",
@@ -111,22 +71,52 @@ async function submitCreatorLongForm(request: RenderEngineRequest, url: string, 
   const raw = await response.text();
   let data: any = {};
   try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
+
   if (!response.ok) {
     const message = data?.error?.message || data?.error || data?.message || "Creator long-form engine menolak permintaan.";
     return { status: "failed", stage: "creator-engine-error", progress: 0, engine: "connected", output: null, message: String(message) };
   }
+
   const task = data.task || data.data?.task || data.data || data;
-  const taskId = String(task?.id || task?.task_id || task?.job_id || data.taskId || data.task_id || "");
+  const taskId = String(task?.id || task?.task_id || task?.job_id || data.taskId || data.task_id || "").trim();
   const outputUrl = findOutputUrl(task?.output || task?.result || task?.video || data.output || data.result || data.video);
   const status = normalizeStatus(task?.status || data.status || (outputUrl ? "succeeded" : "queued"));
+
+  // Never report a successful queue when the provider did not return a real task id.
+  // This prevents the Studio from polling a fabricated/empty task and gives us a
+  // deterministic failure instead of a misleading "render queued" state.
+  if (!taskId) {
+    return {
+      status: "failed",
+      stage: "creator-engine-contract-error",
+      progress: 0,
+      engine: "connected",
+      output: null,
+      message: "Creator long-form engine tidak mengembalikan task ID yang valid.",
+    };
+  }
+
+  // A terminal success is only valid when an actual video URL is present.
+  if (status === "succeeded" && !outputUrl) {
+    return {
+      status: "failed",
+      stage: "creator-engine-output-error",
+      progress: 0,
+      engine: "connected",
+      output: null,
+      message: `Render ${taskId} dilaporkan selesai, tetapi URL MP4 belum dikembalikan oleh engine.`,
+      providerTaskId: taskId,
+    };
+  }
+
   return {
     status,
     stage: status === "succeeded" ? "render-complete" : "creator-engine-queued",
-    progress: status === "succeeded" ? 100 : Number(task?.progress ?? data.progress) || 0,
+    progress: status === "succeeded" ? 100 : Math.min(99, Math.max(0, Number(task?.progress ?? data.progress) || 0)),
     engine: "connected",
     output: outputUrl ? { url: outputUrl, format: request.settings.format } : null,
-    message: String(task?.message || data.message || (taskId ? `Long-form render ${taskId} diterima Creator.` : "Long-form render diterima Creator.")),
-    ...(taskId ? { providerTaskId: taskId } : {}),
+    message: String(task?.message || data.message || `Long-form render ${taskId} diterima Creator.`),
+    providerTaskId: taskId,
   };
 }
 
@@ -137,9 +127,9 @@ export class HttpRenderEngine implements RenderEngineAdapter {
       return { status: "failed", stage: "invalid-duration", progress: 0, engine: "pending", output: null, message: "Produksi long-form hanya mendukung 5, 6, 7, atau 8 menit." };
     }
 
-    // 5–8 minute production MUST use the proven Creator long-form engine.
-    // Do not silently send minutes to a short-clip model: that can produce a
-    // wrong duration or burn provider credits without creating the requested MP4.
+    // Long-form production is intentionally isolated from Mureka short-clip generation.
+    // Video NEW sends one complete 5–8 minute production request to the proven
+    // SALVIAN long-form engine and then polls its task until the final MP4 exists.
     const creatorUrl = process.env.SALVIAN_LONG_VIDEO_RENDER_URL?.trim() || "https://salvian-ai-creator.vercel.app/api/video";
     const creatorKey = process.env.SALVIAN_LONG_VIDEO_RENDER_KEY?.trim();
     try {
