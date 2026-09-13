@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { queryMurekaVideoTask } from "../../../../../lib/mureka-video";
+import { queryMurekaVideoTask } from "../../../../lib/mureka-video";
 
 export async function GET(request: Request) {
   try {
