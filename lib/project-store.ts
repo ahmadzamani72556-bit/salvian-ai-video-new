@@ -36,4 +36,4 @@ export function saveRenderSettings(s:RenderSettings){if(typeof window==="undefin
 export function readRenderSettings(id?:string):RenderSettings|null{const m=readRenderMap();if(id&&m[id])return m[id];const a=readActiveProject();return a?.id&&m[a.id]?m[a.id]:Object.values(m)[0]||null;}
 export function readRenderJobs(id?:string):RenderJob[]{if(typeof window==="undefined")return[];try{const p=JSON.parse(localStorage.getItem(RENDER_JOBS_KEY)||"[]");return Array.isArray(p)?id?p.filter((j:RenderJob)=>j.projectId===id):p:[];}catch{return[];}}
 export function saveRenderJob(job:RenderJob){if(typeof window==="undefined")return;localStorage.setItem(RENDER_JOBS_KEY,JSON.stringify([job,...readRenderJobs().filter(j=>j.id!==job.id)].slice(0,50)));}
-export function clearProjectState(){if(typeof window==="undefined")return;[ACTIVE_KEY,WORKSPACE_KEY,PROJECTS_KEY,RENDER_JOBS_KEY].forEach(k=>localStorage.removeItem(k));}
+export function clearProjectState(){if(typeof window==="undefined")return;[ACTIVE_KEY,WORKSPACE_KEY,PROJECTS_KEY,RENDER_KEY,RENDER_JOBS_KEY].forEach(k=>localStorage.removeItem(k));}
