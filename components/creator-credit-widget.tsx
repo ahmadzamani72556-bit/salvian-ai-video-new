@@ -48,9 +48,20 @@ export default function CreatorCreditWidget() {
       try { localStorage.setItem(PROFILE_KEY, JSON.stringify(next)); } catch {}
     };
 
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== PROFILE_KEY) return;
+      try {
+        const raw = localStorage.getItem(PROFILE_KEY);
+        const saved = raw ? normalizeProfile(JSON.parse(raw)) : null;
+        if (saved) setProfile(saved);
+      } catch {}
+    };
+
     window.addEventListener('message', onMessage);
+    window.addEventListener('storage', onStorage);
     return () => {
       window.removeEventListener('message', onMessage);
+      window.removeEventListener('storage', onStorage);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -64,9 +75,18 @@ export default function CreatorCreditWidget() {
     creatorUrl.searchParams.set('bridge', '1');
     creatorUrl.searchParams.set('returnTo', returnTo);
 
+    // Always create a fresh popup. Reusing a named popup can preserve an old
+    // window.opener, which can make Creator send the profile to a stale Video
+    // tab instead of the page the user is currently using.
+    try {
+      const stale = window.open('', 'salvianCreatorAccount');
+      if (stale && !stale.closed && stale !== window) stale.close();
+    } catch {}
+
+    const popupName = `salvianCreatorAccount_${Date.now()}`;
     const popup = window.open(
       creatorUrl.toString(),
-      'salvianCreatorAccount',
+      popupName,
       'popup,width=520,height=820,resizable=yes,scrollbars=yes',
     );
 
@@ -78,9 +98,6 @@ export default function CreatorCreditWidget() {
 
     popupRef.current = popup;
 
-    // Also request the profile after opening. This covers the important case
-    // where the Creator account was already logged in and no new login event
-    // occurs to trigger the original profile message.
     const requestProfile = () => {
       try { popup.postMessage({ type: 'SALVIAN_REQUEST_ACCOUNT_PROFILE' }, CREATOR_ORIGIN); } catch {}
     };
