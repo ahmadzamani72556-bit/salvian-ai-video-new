@@ -49,7 +49,7 @@ function buildMurekaPrompt(request: RenderEngineRequest) {
   const script = typeof project.script === "string" ? project.script.trim() : "";
   const style = typeof project.style === "string" ? project.style : "Cinematic";
   const title = request.projectTitle || "SALVIAN AI VIDEO";
-  const ratio = project.ratio || request.settings.resolution === "4K" ? "16:9" : project.ratio || "16:9";
+  const ratio = typeof project.ratio === "string" && project.ratio ? project.ratio : "16:9";
 
   return [
     `Create a complete cinematic video for the project titled "${title}".`,
