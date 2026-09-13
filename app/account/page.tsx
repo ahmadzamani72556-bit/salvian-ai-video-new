@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const CREATOR = "https://salvian-ai-creator.vercel.app/akun.html?from=video&bridge=1";
+const CREATOR_ORIGIN = "https://salvian-ai-creator.vercel.app";
 const PROFILE_KEY = "salvian-video-account-profile";
 type Profile = { display_name: string; email: string; plan: string; credits: number };
 
@@ -27,8 +28,8 @@ export default function AccountPage() {
     if (cached) setProfile(cached);
 
     const handler = (event: MessageEvent) => {
-      if (event.origin !== "https://salvian-ai-creator.vercel.app") return;
-      if (event.data?.type !== "SALVIAN_ACCOUNT_PROFILE" || event.data?.source !== "creator") return;
+      if (event.origin !== CREATOR_ORIGIN) return;
+      if (event.data?.type !== "SALVIAN_ACCOUNT_PROFILE" && event.data?.type !== "SALVIAN_ACCOUNT_AUTHENTICATED") return;
       const p = event.data.profile;
       if (!p) return;
       const next: Profile = { display_name: String(p.display_name || "Pengguna Salvian"), email: String(p.email || ""), plan: String(p.plan || "FREE"), credits: Number(p.credits || 0) };
@@ -51,7 +52,14 @@ export default function AccountPage() {
 
   const openCreator = () => {
     setOpened(true);
-    window.open(CREATOR, "salvianCreatorAccount", "popup,width=520,height=820,resizable=yes,scrollbars=yes");
+    // Do not reuse an old named popup: its window.opener can point to a stale
+    // Video tab, preventing the Creator bridge from returning the profile here.
+    try {
+      const stale = window.open("", "salvianCreatorAccount");
+      if (stale && !stale.closed && stale !== window) stale.close();
+    } catch {}
+    const popupName = `salvianCreatorAccount_${Date.now()}`;
+    window.open(CREATOR, popupName, "popup,width=520,height=820,resizable=yes,scrollbars=yes");
   };
 
   return (
