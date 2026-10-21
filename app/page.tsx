@@ -8,7 +8,7 @@ export default function Home() {
     <main className="shell">
       <nav className="nav">
         <Link href="/" className="brand"><img className="brand-logo" src="/salvian-ai-video-logo.svg" alt="Salvian AI Video" /><span>SALVIAN <b>AI VIDEO</b></span></Link>
-        <div className="nav-links"><a href="#fitur">Fitur</a><a href="#alur">Alur</a><Link className="login" href="/login">Masuk</Link><Link className="nav-cta" href="/create">Mulai Gratis</Link></div>
+        <div className="nav-links"><a href="#fitur">Fitur</a><a href="#alur">Alur</a><Link className="nav-cta" href="/create">Mulai Gratis</Link></div>
       </nav>
       <section className="hero">
         <div className="badge"><Sparkles size={15}/> LONG VIDEO CREATION STUDIO</div>
