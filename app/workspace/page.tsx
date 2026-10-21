@@ -61,7 +61,7 @@ export default function WorkspacePage() {
     try {
       const raw = localStorage.getItem(assistantHistoryKey);
       const parsed = raw ? JSON.parse(raw) : [];
-      setAssistantMessages(Array.isArray(parsed) ? parsed.filter((item) => item?.role && item?.text) : []);
+      setAssistantMessages(Array.isArray(parsed) ? parsed.filter((item) => item?.role && item?.text !== undefined) : []);
     } catch {
       setAssistantMessages([]);
     }
@@ -147,8 +147,24 @@ export default function WorkspacePage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "AI Assistant gagal merespons.");
       const reply = data.reply || "AI Assistant tidak memberikan jawaban.";
-      const completedMessages = [...nextMessages, { role: "assistant" as const, text: reply }];
       setAssistantReply(reply);
+
+      let animated = "";
+      const initialMessages: AssistantMessage[] = [...nextMessages, { role: "assistant", text: "" }];
+      setAssistantMessages(initialMessages);
+      const step = reply.length > 900 ? 3 : reply.length > 500 ? 2 : 1;
+      for (let index = 0; index < reply.length; index += step) {
+        animated += reply.slice(index, index + step);
+        const visible = animated;
+        setAssistantMessages((current) => {
+          const copy = [...current];
+          const last = copy.length - 1;
+          if (copy[last]?.role === "assistant") copy[last] = { role: "assistant", text: visible };
+          return copy;
+        });
+        await new Promise((resolve) => window.setTimeout(resolve, 10));
+      }
+      const completedMessages: AssistantMessage[] = [...nextMessages, { role: "assistant", text: reply }];
       setAssistantMessages(completedMessages);
       persistAssistantHistory(completedMessages);
     } catch (error) {
@@ -156,6 +172,7 @@ export default function WorkspacePage() {
       const completedMessages = [...nextMessages, { role: "assistant" as const, text: reply }];
       setAssistantReply(reply);
       setAssistantMessages(completedMessages);
+      persistAssistantHistory(completedMessages);
     } finally {
       setAssistantLoading(false);
     }
@@ -239,20 +256,13 @@ export default function WorkspacePage() {
               <div className="assistant-message-list">
                 {assistantMessages.length === 0 && <div className="assistant-empty">Mulai dengan pertanyaan atau gunakan salah satu bantuan cepat di bawah.</div>}
                 {assistantMessages.map((message, index) => <div className={`assistant-message ${message.role}`} key={`${message.role}-${index}`}><span className="assistant-message-role">{message.role === "user" ? "Kamu" : "AI Assistant"}</span><div>{message.text}</div></div>)}
-                {assistantLoading && <div className="assistant-message assistant"><span className="assistant-message-role">AI Assistant</span><div>Sedang menyiapkan jawaban…</div></div>}
+                {assistantLoading && <div className="assistant-typing"><span></span><span></span><span></span><em>AI sedang menulis…</em></div>}
               </div>
             </div>
-
-            <aside className="assistant-side-tools">
-              <span className="simple-kicker">BANTUAN CEPAT</span>
-              <button type="button" onClick={() => setAssistantInput("Buatkan ide script untuk project ini")}>Buat Script</button>
-              <button type="button" onClick={() => setAssistantInput("Susun storyboard project ini")}>Storyboard</button>
-              <button type="button" onClick={() => setAssistantInput("Bantu saya merapikan project ini")}>Rapikan Project</button>
-              <button type="button" onClick={() => setAssistantInput("Buatkan hook pembuka yang kuat untuk project ini")}>Buat Hook</button>
-            </aside>
           </div>
 
           <footer className="assistant-composer">
+            <div className="assistant-quick"><span className="simple-kicker">BANTUAN CEPAT</span><button type="button" onClick={() => setAssistantInput("Buatkan ide script untuk project ini")}>Buat Script</button><button type="button" onClick={() => setAssistantInput("Susun storyboard project ini")}>Storyboard</button><button type="button" onClick={() => setAssistantInput("Bantu saya merapikan project ini")}>Rapikan Project</button><button type="button" onClick={() => setAssistantInput("Buatkan hook pembuka yang kuat untuk project ini")}>Buat Hook</button></div>
             <div className="assistant-composer-inner"><input autoFocus value={assistantInput} onChange={(event) => setAssistantInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") askAssistant(); }} placeholder="Tulis apa yang ingin kamu kerjakan…" /><button className="start-btn" type="button" onClick={askAssistant} disabled={assistantLoading || !assistantInput.trim()}>Kirim <ArrowRight size={16} /></button></div>
           </footer>
         </section>
