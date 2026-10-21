@@ -1,52 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clapperboard, FolderOpen, Sparkles, WalletCards } from "lucide-react";
+import { ArrowRight, Clapperboard, FolderOpen, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { readActiveProject, readProjects, type VideoProject } from "../../lib/project-store";
-
-const PROFILE_KEY = "salvian-video-account-profile";
-
-function readCachedCredits() {
-  try {
-    const cached = localStorage.getItem(PROFILE_KEY);
-    if (!cached) return "—";
-    return Number(JSON.parse(cached)?.credits || 0).toLocaleString("id-ID");
-  } catch { return "—"; }
-}
 
 export default function Dashboard() {
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
   const [projects, setProjects] = useState<VideoProject[]>([]);
-  const [credits, setCredits] = useState<string>("—");
 
   useEffect(() => {
     setActiveProject(readActiveProject());
     setProjects(readProjects());
-    setCredits(readCachedCredits());
-
-    const syncProfile = (p: any) => {
-      if (!p) return;
-      setCredits(Number(p.credits || 0).toLocaleString("id-ID"));
-      try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
-    };
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== "https://salvian-ai-creator.vercel.app") return;
-      if (event.data?.type !== "SALVIAN_ACCOUNT_PROFILE") return;
-      syncProfile(event.data.profile);
-    };
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === PROFILE_KEY) setCredits(readCachedCredits());
-    };
-    const onPageShow = () => setCredits(readCachedCredits());
-    window.addEventListener("message", onMessage);
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("pageshow", onPageShow);
-    return () => {
-      window.removeEventListener("message", onMessage);
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("pageshow", onPageShow);
-    };
   }, []);
 
   const recentProjects = useMemo(() => projects.slice(0, 5), [projects]);
@@ -57,15 +22,13 @@ export default function Dashboard() {
     <main className="dash-shell">
       <nav className="dash-nav">
         <Link href="/" className="brand"><img className="brand-logo" src="/salvian-ai-video-logo.svg" alt="Salvian AI Video" /><span>SALVIAN <b>AI VIDEO</b></span></Link>
-        <Link href="/account" className="user-pill">Saldo Creator <span>{credits === "—" ? "Kelola" : `${credits} kredit`}</span></Link>
       </nav>
       <section className="dash-main">
         <div className="dash-head">
-          <div><div className="eyebrow">WORKSPACE CREATOR</div><h1>Selamat datang kembali.</h1><p>Semua proses pembuatan video YouTube Anda ada di satu tempat.</p></div>
+          <div><div className="eyebrow">WORKSPACE CREATOR</div><h1>Selamat datang.</h1><p>Semua proses pembuatan video Anda ada di satu tempat.</p></div>
           <Link href="/create" className="primary"><Sparkles size={17}/> Buat Video Baru <ArrowRight size={17}/></Link>
         </div>
         <div className="stats">
-          <Stat icon={<WalletCards/>} label="Saldo Creator" value={credits} />
           <Stat icon={<Clapperboard/>} label="Total project" value={String(projects.length)} />
           <Stat icon={<FolderOpen/>} label="Video selesai" value={String(completed)} />
         </div>
