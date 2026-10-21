@@ -6,15 +6,7 @@ const qualities = ["Standard", "High", "Maximum"];
 const formats = ["MP4", "WebM"];
 
 type RenderProject = { id?: string; title?: string; script?: string; scenes?: unknown[]; audio?: unknown; visual?: unknown; subtitle?: unknown; timeline?: unknown };
-
-type RenderSettingsInput = {
-  projectId?: unknown;
-  projectTitle?: unknown;
-  resolution?: unknown;
-  fps?: unknown;
-  quality?: unknown;
-  format?: unknown;
-};
+type RenderSettingsInput = { projectId?: unknown; projectTitle?: unknown; resolution?: unknown; fps?: unknown; quality?: unknown; format?: unknown };
 
 export async function POST(request: Request) {
   try {
@@ -34,7 +26,6 @@ export async function POST(request: Request) {
     const readyCount = Object.values(readiness).filter(Boolean).length;
     if (readyCount < 5) return NextResponse.json({ error: "Project belum siap untuk engine render.", readiness, readyCount }, { status: 409 });
     const provider = process.env.MUREKA_RENDER_PROVIDER || "mureka";
-    const creditCharge = resolution === "4K" ? 45 : resolution === "1080p" ? 30 : 20;
-    return NextResponse.json({ ok: true, mode: "engine-ready", job: { id: `render-${projectId}-${Date.now()}`, projectId, projectTitle, provider, output: { resolution, fps, quality, format }, status: "ready_for_engine", creditCharge, readiness }, message: "Kontrak render valid. Belum ada kredit yang dipotong dan belum ada job provider yang dikirim." });
+    return NextResponse.json({ ok: true, mode: "engine-ready", job: { id: `render-${projectId}-${Date.now()}`, projectId, projectTitle, provider, output: { resolution, fps, quality, format }, status: "ready_for_engine", readiness }, message: "Kontrak render valid. Tidak ada sistem kredit atau billing pada Salvian AI Video." });
   } catch { return NextResponse.json({ error: "Permintaan render tidak dapat diproses." }, { status: 500 }); }
 }
