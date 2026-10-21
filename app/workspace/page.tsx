@@ -2,7 +2,7 @@
 
 import "./workspace.css";
 import Link from "next/link";
-import { ArrowRight, Bot, CheckCircle2, FolderOpen, Play, Save, Sparkles } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle2, Clipboard, FolderOpen, Play, Save, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { makeProjectId, readActiveProject, readProjects, saveActiveProject, type VideoProject } from "../../lib/project-store";
 
@@ -13,6 +13,8 @@ const steps = [
   { key: "Render", title: "Render video", description: "Siapkan dan jalankan proses render akhir.", tab: "Timeline" },
 ] as const;
 
+type AssistantMessage = { role: "user" | "assistant"; text: string };
+
 export default function WorkspacePage() {
   const [title, setTitle] = useState("Project Video Baru");
   const [status, setStatus] = useState("Draft");
@@ -22,6 +24,9 @@ export default function WorkspacePage() {
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantReply, setAssistantReply] = useState("");
   const [assistantLoading, setAssistantLoading] = useState(false);
+  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
+  const [assistantCopied, setAssistantCopied] = useState(false);
+  const [assistantDraftSaved, setAssistantDraftSaved] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -40,6 +45,7 @@ export default function WorkspacePage() {
   }, []);
 
   const projectId = activeProject?.id || makeProjectId(title);
+  const assistantHistoryKey = `salvian-video-assistant-history:${projectId}`;
   const studioHref = `/create?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
   const renderHref = `/render?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
   const projectCount = useMemo(() => readProjects().length, [activeProject, saved]);
@@ -49,6 +55,19 @@ export default function WorkspacePage() {
     review: Boolean(activeProject?.timeline),
     render: false,
   };
+
+  useEffect(() => {
+    if (!assistantOpen) return;
+    try {
+      const raw = localStorage.getItem(assistantHistoryKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setAssistantMessages(Array.isArray(parsed) ? parsed.filter((item) => item?.role && item?.text) : []);
+    } catch {
+      setAssistantMessages([]);
+    }
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, [assistantOpen, assistantHistoryKey]);
 
   function saveWorkspace() {
     const cleanTitle = title.trim() || "Project Video Baru";
@@ -68,11 +87,53 @@ export default function WorkspacePage() {
     window.setTimeout(() => setSaved(false), 1800);
   }
 
+  function persistAssistantHistory(messages: AssistantMessage[]) {
+    localStorage.setItem(assistantHistoryKey, JSON.stringify(messages));
+  }
+
+  async function copyAssistantReply() {
+    const text = [...assistantMessages].reverse().find((message) => message.role === "assistant")?.text || assistantReply;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setAssistantCopied(true);
+      window.setTimeout(() => setAssistantCopied(false), 1600);
+    } catch {
+      setAssistantCopied(false);
+    }
+  }
+
+  function saveAssistantDraft() {
+    persistAssistantHistory(assistantMessages);
+    saveWorkspace();
+    localStorage.setItem(`salvian-video-assistant-draft:${projectId}`, JSON.stringify({ projectId, title, messages: assistantMessages, savedAt: new Date().toISOString() }));
+    setAssistantDraftSaved(true);
+    window.setTimeout(() => setAssistantDraftSaved(false), 1800);
+  }
+
+  function clearAssistantPage() {
+    setAssistantInput("");
+    setAssistantReply("");
+    setAssistantMessages([]);
+  }
+
+  function clearAssistantHistory() {
+    localStorage.removeItem(assistantHistoryKey);
+    localStorage.removeItem(`salvian-video-assistant-draft:${projectId}`);
+    setAssistantMessages([]);
+    setAssistantInput("");
+    setAssistantReply("");
+  }
+
   async function askAssistant() {
     const message = assistantInput.trim();
     if (!message || assistantLoading) return;
     setAssistantLoading(true);
     setAssistantReply("");
+    const userMessage: AssistantMessage = { role: "user", text: message };
+    const nextMessages = [...assistantMessages, userMessage];
+    setAssistantMessages(nextMessages);
+    setAssistantInput("");
     try {
       const response = await fetch("/api/assistant", {
         method: "POST",
@@ -85,9 +146,16 @@ export default function WorkspacePage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "AI Assistant gagal merespons.");
-      setAssistantReply(data.reply || "AI Assistant tidak memberikan jawaban.");
+      const reply = data.reply || "AI Assistant tidak memberikan jawaban.";
+      const completedMessages = [...nextMessages, { role: "assistant" as const, text: reply }];
+      setAssistantReply(reply);
+      setAssistantMessages(completedMessages);
+      persistAssistantHistory(completedMessages);
     } catch (error) {
-      setAssistantReply(error instanceof Error ? error.message : "AI Assistant tidak dapat merespons.");
+      const reply = error instanceof Error ? error.message : "AI Assistant tidak dapat merespons.";
+      const completedMessages = [...nextMessages, { role: "assistant" as const, text: reply }];
+      setAssistantReply(reply);
+      setAssistantMessages(completedMessages);
     } finally {
       setAssistantLoading(false);
     }
@@ -154,18 +222,40 @@ export default function WorkspacePage() {
       </section>
 
       {assistantOpen && (
-        <div className="simple-modal-backdrop" onClick={() => setAssistantOpen(false)}>
-          <section className="simple-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="simple-modal-head"><div><span className="simple-kicker">AI ASSISTANT</span><h2>Bantuan untuk project</h2></div><button className="ghost-btn" type="button" onClick={() => setAssistantOpen(false)}>Tutup</button></div>
-            <div className="simple-chat">
-              <div className="simple-chat-bubble"><Bot size={17} /><span>Saya siap membantu project <strong>{title}</strong>. Apa yang ingin kamu buat?</span></div>
-              {assistantReply && <div className="simple-chat-reply">{assistantReply}</div>}
-              {assistantLoading && <div className="simple-chat-reply">Sedang menyiapkan jawaban…</div>}
+        <section className="simple-assistant-page" aria-label="AI Assistant">
+          <header className="assistant-page-head">
+            <div className="assistant-page-title"><button className="assistant-close" type="button" onClick={() => setAssistantOpen(false)} aria-label="Tutup AI Assistant"><X size={20} /></button><div><span className="simple-kicker">AI ASSISTANT</span><h2>Ruang kerja AI</h2><p>Project: <strong>{title}</strong></p></div></div>
+            <div className="assistant-page-actions">
+              <button type="button" onClick={copyAssistantReply} disabled={!assistantMessages.some((message) => message.role === "assistant")}><Clipboard size={15} /> {assistantCopied ? "Tersalin" : "Salin"}</button>
+              <button type="button" onClick={saveAssistantDraft}><Save size={15} /> {assistantDraftSaved ? "Tersimpan" : "Draft"}</button>
+              <button type="button" onClick={clearAssistantPage}><Trash2 size={15} /> Hapus halaman</button>
+              <button type="button" onClick={clearAssistantHistory}><Trash2 size={15} /> Hapus riwayat</button>
             </div>
-            <div className="simple-quick"><button type="button" onClick={() => setAssistantInput("Buatkan ide script untuk project ini")}>Buat Script</button><button type="button" onClick={() => setAssistantInput("Susun storyboard project ini")}>Storyboard</button><button type="button" onClick={() => setAssistantInput("Bantu saya merapikan project ini")}>Rapikan Project</button></div>
-            <div className="simple-input-row"><input value={assistantInput} onChange={(event) => setAssistantInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") askAssistant(); }} placeholder="Tulis pertanyaan…" /><button className="start-btn" type="button" onClick={askAssistant} disabled={assistantLoading}>Kirim</button></div>
-          </section>
-        </div>
+          </header>
+
+          <div className="assistant-page-body">
+            <div className="assistant-chat-area">
+              <div className="assistant-welcome"><Bot size={20} /><div><strong>Saya siap membantu.</strong><span>Buat ide, script, storyboard, revisi narasi, atau bantu merapikan project.</span></div></div>
+              <div className="assistant-message-list">
+                {assistantMessages.length === 0 && <div className="assistant-empty">Mulai dengan pertanyaan atau gunakan salah satu bantuan cepat di bawah.</div>}
+                {assistantMessages.map((message, index) => <div className={`assistant-message ${message.role}`} key={`${message.role}-${index}`}><span className="assistant-message-role">{message.role === "user" ? "Kamu" : "AI Assistant"}</span><div>{message.text}</div></div>)}
+                {assistantLoading && <div className="assistant-message assistant"><span className="assistant-message-role">AI Assistant</span><div>Sedang menyiapkan jawaban…</div></div>}
+              </div>
+            </div>
+
+            <aside className="assistant-side-tools">
+              <span className="simple-kicker">BANTUAN CEPAT</span>
+              <button type="button" onClick={() => setAssistantInput("Buatkan ide script untuk project ini")}>Buat Script</button>
+              <button type="button" onClick={() => setAssistantInput("Susun storyboard project ini")}>Storyboard</button>
+              <button type="button" onClick={() => setAssistantInput("Bantu saya merapikan project ini")}>Rapikan Project</button>
+              <button type="button" onClick={() => setAssistantInput("Buatkan hook pembuka yang kuat untuk project ini")}>Buat Hook</button>
+            </aside>
+          </div>
+
+          <footer className="assistant-composer">
+            <div className="assistant-composer-inner"><input autoFocus value={assistantInput} onChange={(event) => setAssistantInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") askAssistant(); }} placeholder="Tulis apa yang ingin kamu kerjakan…" /><button className="start-btn" type="button" onClick={askAssistant} disabled={assistantLoading || !assistantInput.trim()}>Kirim <ArrowRight size={16} /></button></div>
+          </footer>
+        </section>
       )}
     </main>
   );
