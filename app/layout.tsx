@@ -1,6 +1,7 @@
 import './globals.css';
 import './studio.css';
 import './workspace/workspace.css';
+import './workspace/assistant-scroll.css';
 import './logo.css';
 
 export const metadata = {
