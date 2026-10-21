@@ -2,9 +2,9 @@
 
 import "./workspace.css";
 import Link from "next/link";
-import { ArrowRight, Bot, CheckCircle2, Film, FolderOpen, Play, Save, Sparkles } from "lucide-react";
+import { ArrowRight, Bot, CheckCircle2, FolderOpen, Play, Save, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { createProjectId, readActiveProject, readProjects, saveActiveProject, type VideoProject } from "../../lib/project-store";
+import { makeProjectId, readActiveProject, readProjects, saveActiveProject, type VideoProject } from "../../lib/project-store";
 
 const steps = [
   { key: "Konsep", title: "Tentukan ide", description: "Masukkan topik dan pilih gaya video.", tab: "Konsep" },
@@ -39,7 +39,7 @@ export default function WorkspacePage() {
     }
   }, []);
 
-  const projectId = activeProject?.id || createProjectId(title);
+  const projectId = activeProject?.id || makeProjectId(title);
   const studioHref = `/create?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
   const renderHref = `/render?project=${encodeURIComponent(title)}&projectId=${encodeURIComponent(projectId)}&from=workspace`;
   const projectCount = useMemo(() => readProjects().length, [activeProject, saved]);
@@ -54,7 +54,7 @@ export default function WorkspacePage() {
     const cleanTitle = title.trim() || "Project Video Baru";
     const project: VideoProject = {
       ...(activeProject || {}),
-      id: activeProject?.id || createProjectId(cleanTitle),
+      id: activeProject?.id || makeProjectId(cleanTitle),
       title: cleanTitle,
       status,
       duration: activeProject?.duration || 7,
