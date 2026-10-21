@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { productionEngine } from "../../../lib/production-engine";
-import { getVideoCreditCost } from "../../../lib/credit-pricing";
 
 const durations = [5, 6, 7, 8];
 const styles = ["Cinematic", "Documentary", "Realistic", "Anime", "Islamic Elegant"];
@@ -32,9 +31,6 @@ export async function POST(request: Request) {
     const autoSubtitle = body.autoSubtitle !== false;
     const smartPacing = body.smartPacing !== false;
 
-    // FINAL pricing: one long-form production consumes one fixed Creator
-    // transaction. No local Video wallet and no second render charge.
-    const creditCost = getVideoCreditCost(duration);
     const result = await productionEngine.generate({
       topic,
       duration,
@@ -47,7 +43,7 @@ export async function POST(request: Request) {
       autoSubtitle,
       smartPacing
     });
-    return NextResponse.json({ ok: true, mode: result.mode, creditCost, project: result.project });
+    return NextResponse.json({ ok: true, mode: result.mode, project: result.project });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Permintaan tidak dapat diproses.";
     const status = message.includes("Layanan AI") ? 502 : message.endsWith("tidak valid.") ? 400 : 500;
