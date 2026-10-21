@@ -3,8 +3,10 @@
 import "./workspace.css";
 import Link from "next/link";
 import { ArrowRight, Bot, CheckCircle2, Clipboard, FolderOpen, Play, Save, Sparkles, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { makeProjectId, readActiveProject, readProjects, saveActiveProject, type VideoProject } from "../../lib/project-store";
+
+type AssistantMessage = { role: "user" | "assistant"; text: string };
 
 const steps = [
   { key: "Konsep", title: "Tentukan ide", description: "Masukkan topik dan pilih gaya video.", tab: "Konsep" },
@@ -12,8 +14,6 @@ const steps = [
   { key: "Review", title: "Periksa hasil", description: "Rapikan scene dan timeline sebelum output akhir.", tab: "Timeline" },
   { key: "Render", title: "Render video", description: "Siapkan dan jalankan proses render akhir.", tab: "Timeline" },
 ] as const;
-
-type AssistantMessage = { role: "user" | "assistant"; text: string };
 
 export default function WorkspacePage() {
   const [title, setTitle] = useState("Project Video Baru");
@@ -27,6 +27,7 @@ export default function WorkspacePage() {
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
   const [assistantCopied, setAssistantCopied] = useState(false);
   const [assistantDraftSaved, setAssistantDraftSaved] = useState(false);
+  const assistantChatRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -68,6 +69,17 @@ export default function WorkspacePage() {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, [assistantOpen, assistantHistoryKey]);
+
+  // Keep the latest assistant text visible while it is being typed, then leave
+  // the chat naturally scrollable so the user can read older messages.
+  useEffect(() => {
+    if (!assistantOpen) return;
+    const chat = assistantChatRef.current;
+    if (!chat) return;
+    requestAnimationFrame(() => {
+      chat.scrollTo({ top: chat.scrollHeight, behavior: assistantLoading ? "auto" : "smooth" });
+    });
+  }, [assistantMessages, assistantLoading, assistantOpen]);
 
   function saveWorkspace() {
     const cleanTitle = title.trim() || "Project Video Baru";
@@ -251,7 +263,7 @@ export default function WorkspacePage() {
           </header>
 
           <div className="assistant-page-body">
-            <div className="assistant-chat-area">
+            <div className="assistant-chat-area" ref={assistantChatRef}>
               <div className="assistant-welcome"><Bot size={20} /><div><strong>Saya siap membantu.</strong><span>Buat ide, script, storyboard, revisi narasi, atau bantu merapikan project.</span></div></div>
               <div className="assistant-message-list">
                 {assistantMessages.length === 0 && <div className="assistant-empty">Mulai dengan pertanyaan atau gunakan salah satu bantuan cepat di bawah.</div>}
