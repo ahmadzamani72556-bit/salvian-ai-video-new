@@ -44,10 +44,19 @@ const log = (logs: ProductionLog[], stage: LongFormStage, label: string, progres
   logs.push({ at: now(), stage, label, detail, provider, progress });
 };
 
+function providerReady(provider: LongFormProvider): boolean {
+  if (provider === "seedance-2.5") return Boolean(process.env.SEEDANCE_API_KEY);
+  if (provider === "kling-3.0-omni") return Boolean(process.env.KLING_API_KEY && process.env.KLING_API_URL);
+  return Boolean(process.env.VEO_API_KEY && process.env.VEO_API_URL);
+}
+
 function chooseProvider(prompt: string, sceneIndex: number): LongFormProvider {
   const text = prompt.toLowerCase();
-  if (/dialog|dialogue|speaks|berbicara|voice|nyanyi|sing/.test(text)) return "kling-3.0-omni";
-  if (/realistic|photoreal|close-up|close up|hero|cinematic/.test(text) && sceneIndex % 5 === 0) return "veo-3.1";
+  // Seedance is the active native production path. Other engines remain optional
+  // adapters and are selected only after their credentials are actually configured.
+  if (providerReady("seedance-2.5")) return "seedance-2.5";
+  if (/dialog|dialogue|speaks|berbicara|voice|nyanyi|sing/.test(text) && providerReady("kling-3.0-omni")) return "kling-3.0-omni";
+  if (/realistic|photoreal|close-up|close up|hero|cinematic/.test(text) && sceneIndex % 5 === 0 && providerReady("veo-3.1")) return "veo-3.1";
   return "seedance-2.5";
 }
 
@@ -64,25 +73,24 @@ export function buildLongFormPlan(project: any): LongFormPlan {
   if (![300, 360, 420, 480].includes(durationSeconds)) throw new Error("Durasi long-form harus 5, 6, 7, atau 8 menit.");
   const logs: ProductionLog[] = [];
   log(logs, "planning", "Salvian Director menyusun film utuh", 4, `${durationSeconds / 60} menit · satu output final`);
-  const scenes = Array.isArray(project?.scenes) && project.scenes.length ? project.scenes : [{ number: 1, title: "Opening", visual: project?.topic || "", duration: durationSeconds, voice: "" }];
+  const scenes = Array.isArray(project?.scenes) && project.scenes.length ? project.scenes : [{ number: 1, title: "Opening", visual: project?.topic || project?.script || "", duration: durationSeconds, voice: "" }];
   const music: MusicGuide | undefined = project?.musicAsset ? project.musicAsset : undefined;
   if (music) log(logs, "music-analysis", "Menganalisis lagu dan ritme", 9, music.name || "Audio reference");
 
-  const totalScene = scenes.reduce((sum: number, s: any) => sum + Math.max(1, Number(s.duration) || 1), 0);
   const beats = makeBeatWindows(durationSeconds, music?.bpm, music?.beatOffsetSeconds || 0);
   const shots: LongFormShot[] = [];
   let cursor = 0;
   let sequence = 0;
   for (const scene of scenes) {
     const sceneSeconds = Math.max(1, Number(scene.duration) || 1);
-    const shotCount = Math.max(1, Math.ceil(sceneSeconds / 15));
+    const shotCount = Math.max(1, Math.ceil(sceneSeconds / 30));
     const base = sceneSeconds / shotCount;
     for (let i = 0; i < shotCount; i++) {
       const seconds = Math.min(30, Math.max(4, Number(base.toFixed(2))));
-      const prompt = [scene.title, scene.visual, scene.voice, music ? `Edit visual rhythm to follow ${music.syncMode || "phrase"} timing.` : ""].filter(Boolean).join(". ");
+      const prompt = [scene.title, scene.visual, scene.voice, music ? `Edit visual rhythm to follow ${music.syncMode || "phrase"} timing.` : "", "Maintain visual continuity with the previous shot."].filter(Boolean).join(". ");
       const provider = chooseProvider(prompt, sequence);
       const previous = shots[shots.length - 1];
-      const shot: LongFormShot = {
+      shots.push({
         id: `shot-${sequence + 1}`,
         scene: Number(scene.number) || sequence + 1,
         duration: seconds,
@@ -92,15 +100,15 @@ export function buildLongFormPlan(project: any): LongFormPlan {
         extendFrom: previous?.id,
         beatStart: beats.length ? beats.reduce((p, b) => Math.abs(b - cursor) < Math.abs(p - cursor) ? b : p, beats[0]) : undefined,
         beatEnd: beats.length ? beats.reduce((p, b) => Math.abs(b - (cursor + seconds)) < Math.abs(p - (cursor + seconds)) ? b : p, beats[0]) : undefined,
-      };
-      shots.push(shot);
+      });
       cursor += seconds;
       sequence += 1;
     }
   }
-  log(logs, "shot-planning", `Storyboard dipecah menjadi ${shots.length} shot`, 16, "Pemilihan mesin dilakukan otomatis oleh Salvian");
+
+  log(logs, "shot-planning", `Storyboard dipecah menjadi ${shots.length} shot`, 16, "Salvian memilih jalur mesin yang benar-benar tersedia");
   const providers = [...new Set(shots.map(s => s.provider))];
-  providers.forEach((provider, index) => log(logs, "generation", `Menyiapkan jalur ${provider}`, 20 + index * 3, "Provider detail tetap internal", provider));
+  providers.forEach((provider, index) => log(logs, "generation", "Mesin visual siap untuk produksi", 20 + index * 3, "Detail mesin tetap internal", provider));
   log(logs, "continuity", "Menyiapkan reference frame dan continuity state", 32, "Karakter, lokasi, kamera, wardrobe, lighting");
   log(logs, "audio", music ? "Menyiapkan sinkronisasi visual dengan lagu" : "Menyiapkan voice-over dan ambience", 38);
   log(logs, "assembly", "Menyiapkan timeline master", 48, "Semua shot akan dirakit menjadi satu video");
@@ -108,11 +116,11 @@ export function buildLongFormPlan(project: any): LongFormPlan {
 }
 
 export function providerEndpoint(provider: LongFormProvider): string | null {
-  if (provider === "seedance-2.5") return process.env.SEEDANCE_API_URL || null;
+  if (provider === "seedance-2.5") return process.env.SEEDANCE_API_URL || "https://ark.cn-beijing.volces.com/api/v3";
   if (provider === "kling-3.0-omni") return process.env.KLING_API_URL || null;
   return process.env.VEO_API_URL || null;
 }
 
 export function missingProviderConfiguration(plan: LongFormPlan): string[] {
-  return [...new Set(plan.shots.map(s => s.provider))].filter(provider => !providerEndpoint(provider));
+  return [...new Set(plan.shots.map(s => s.provider))].filter(provider => !providerReady(provider));
 }
