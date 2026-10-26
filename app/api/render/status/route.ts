@@ -3,9 +3,18 @@ import { getRenderJobState, saveRenderJobState } from "../../../../lib/render-jo
 import { getProviderStatus, submitProvider } from "../../../../lib/video-provider-adapters";
 
 function publicResult(state:any){
- const totalShots=Array.isArray(state.plan?.shots)?state.plan.shots.length:0;
+ const shots=Array.isArray(state.plan?.shots)?state.plan.shots:[];
+ const totalShots=shots.length;
+ const completedCount=Array.isArray(state.completedUrls)?state.completedUrls.length:0;
  const completedClips=Array.isArray(state.completedUrls)?state.completedUrls.slice(-8):[];
- return {id:state.id,status:state.status,stage:state.stage,phase:state.phase||state.stage,progress:Math.max(0,Math.min(100,state.progress)),outputUrl:state.outputUrl,message:state.message,logs:state.logs,currentShot:Math.min(totalShots,state.currentShot||0),totalShots,completedShots:Array.isArray(state.completedUrls)?state.completedUrls.length:0,completedClips,currentClipUrl:completedClips.length?completedClips[completedClips.length-1]:undefined,updatedAt:state.updatedAt};
+ const activeIndex=Math.min(totalShots-1,Math.max(0,Number(state.currentShot)||0));
+ const shotPlan=shots.map((shot:any,index:number)=>({
+  id:String(shot.id||`shot-${index+1}`),
+  scene:Number(shot.scene)||index+1,
+  duration:Number(shot.duration)||0,
+  status:index<completedCount?"completed":index===activeIndex&&["generation","continuity"].includes(String(state.stage))?"active":"queued"
+ }));
+ return {id:state.id,status:state.status,stage:state.stage,phase:state.phase||state.stage,progress:Math.max(0,Math.min(100,state.progress)),outputUrl:state.outputUrl,message:state.message,logs:state.logs,currentShot:Math.min(totalShots,state.currentShot||0),totalShots,completedShots:completedCount,completedClips,currentClipUrl:completedClips.length?completedClips[completedClips.length-1]:undefined,shotPlan,updatedAt:state.updatedAt};
 }
 function assemblyConfigured(){return Boolean(process.env.MEDIA_ASSEMBLER_URL&&process.env.MEDIA_ASSEMBLER_API_KEY);}
 function numericFps(value:string){const n=Number(String(value||"").replace(/[^0-9.]/g,""));return Number.isFinite(n)&&n>0?n:30;}
