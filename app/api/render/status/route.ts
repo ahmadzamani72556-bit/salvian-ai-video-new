@@ -1,59 +1,16 @@
 import { NextResponse } from "next/server";
-
-function statusToProgress(status: string): { stage: string; progress: number; terminal: boolean } {
-  switch (status.toLowerCase()) {
-    case "queued": return { stage: "provider-queued", progress: 22, terminal: false };
-    case "running":
-    case "processing": return { stage: "generation", progress: 58, terminal: false };
-    case "succeeded": return { stage: "generation-complete", progress: 78, terminal: true };
-    case "failed": return { stage: "generation-failed", progress: 20, terminal: true };
-    case "cancelled": return { stage: "cancelled", progress: 0, terminal: true };
-    default: return { stage: "generation", progress: 45, terminal: false };
-  }
-}
-
-export async function GET(request: Request) {
-  const taskId = new URL(request.url).searchParams.get("taskId")?.trim() || "";
-  if (!taskId) return NextResponse.json({ error: "taskId wajib diisi." }, { status: 400 });
-
-  const apiKey = process.env.SEEDANCE_API_KEY;
-  const baseUrl = (process.env.SEEDANCE_API_URL || "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
-  if (!apiKey) {
-    return NextResponse.json({ result: { id: taskId, status: "failed", progress: 0, outputUrl: undefined, message: "Mesin video native belum memiliki kredensial produksi." } }, { status: 503 });
-  }
-
-  try {
-    const response = await fetch(`${baseUrl}/contents/generations/tasks/${encodeURIComponent(taskId)}`, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      cache: "no-store",
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return NextResponse.json({ result: { id: taskId, status: "failed", progress: 0, outputUrl: undefined, message: "Status produksi tidak dapat dibaca dari mesin video." } }, { status: 502 });
-    }
-
-    const status = String(data?.status || "unknown").toLowerCase();
-    const mapped = statusToProgress(status);
-    const outputUrl = data?.content?.video_url || data?.content?.videoUrl || data?.video_url;
-    const errorMessage = data?.error?.message || data?.message;
-    const message = status === "succeeded"
-      ? "Shot visual selesai dibuat."
-      : status === "failed"
-        ? "Mesin video melaporkan produksi shot gagal."
-        : "Salvian sedang membuat shot visual.";
-
-    return NextResponse.json({
-      result: {
-        id: taskId,
-        status,
-        progress: mapped.progress,
-        stage: mapped.stage,
-        outputUrl: outputUrl || undefined,
-        message: errorMessage && status === "failed" ? "Produksi shot gagal dan tidak diteruskan." : message,
-      },
-    }, { status: 200 });
-  } catch {
-    return NextResponse.json({ result: { id: taskId, status: "running", progress: 45, stage: "generation", outputUrl: undefined, message: "Salvian masih terhubung ke mesin video." } }, { status: 200 });
-  }
-}
+import { getRenderJobState, saveRenderJobState } from "../../../../lib/render-job-store";
+import { getProviderStatus, submitProvider } from "../../../../lib/video-provider-adapters";
+function publicResult(state:any){return {id:state.id,status:state.status,stage:state.stage,progress:Math.max(0,Math.min(100,state.progress)),outputUrl:state.outputUrl,message:state.message,logs:state.logs};}
+function assemblyConfigured(){return Boolean(process.env.MEDIA_ASSEMBLER_URL&&process.env.MEDIA_ASSEMBLER_API_KEY);}
+async function submitAssembly(state:any){const url=process.env.MEDIA_ASSEMBLER_URL!.replace(/\/$/,"");const r=await fetch(`${url}/jobs`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${process.env.MEDIA_ASSEMBLER_API_KEY}`},body:JSON.stringify({clips:state.completedUrls,durationSeconds:state.plan.durationSeconds,format:state.settings.format.toLowerCase(),resolution:state.settings.resolution,fps:state.settings.fps,audioUrl:state.plan.music?.url||undefined})});const d=await r.json().catch(()=>({}));if(!r.ok||!d?.id)throw new Error("Mesin perakitan timeline belum menerima tugas.");return String(d.id);}
+async function assemblyStatus(taskId:string){const url=process.env.MEDIA_ASSEMBLER_URL!.replace(/\/$/,"");const r=await fetch(`${url}/jobs/${encodeURIComponent(taskId)}`,{headers:{Authorization:`Bearer ${process.env.MEDIA_ASSEMBLER_API_KEY}`},cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error("Status perakitan timeline tidak dapat dibaca.");const s=String(d?.status||"").toLowerCase();return {status:s==="succeeded"||s==="completed"?"succeeded":s==="failed"||s==="cancelled"?"failed":s==="running"||s==="processing"?"running":"queued",outputUrl:d?.outputUrl||d?.output?.url};}
+export async function GET(request:Request){
+ const jobId=new URL(request.url).searchParams.get("taskId")?.trim()||"";if(!jobId)return NextResponse.json({error:"taskId wajib diisi."},{status:400});
+ try{const state=await getRenderJobState(jobId);if(!state)return NextResponse.json({error:"Job produksi tidak ditemukan."},{status:404});if(["succeeded","failed","cancelled"].includes(state.status))return NextResponse.json({result:publicResult(state)});
+  if(state.status==="assembling"){if(!state.providerTaskId)throw new Error("Assembly task tidak ditemukan.");const a=await assemblyStatus(state.providerTaskId);if(a.status==="succeeded"){state.status="succeeded";state.stage="finalizing";state.progress=100;state.outputUrl=a.outputUrl;state.message="Video panjang selesai dirakit menjadi satu file final.";state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}if(a.status==="failed"){state.status="failed";state.stage="assembly-failed";state.message="Perakitan video final gagal.";state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}state.stage="assembly";state.progress=92;state.message="Salvian sedang merakit seluruh shot menjadi satu video panjang.";state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}
+  if(!state.providerTaskId||!state.provider)throw new Error("Tugas engine aktif tidak ditemukan.");const current=state.plan.shots[state.currentShot];if(!current)throw new Error("Shot aktif tidak ditemukan.");const provider=await getProviderStatus(state.provider,state.providerTaskId);const shotSpan=38/Math.max(1,state.plan.shots.length);state.progress=Math.min(88,Math.round(48+state.currentShot*shotSpan));state.stage="generation";state.message=provider.message||"Salvian sedang membuat shot visual.";
+  if(provider.status==="failed"){state.status="failed";state.stage="generation-failed";state.message="Salah satu shot visual gagal diproduksi. Salvian menghentikan job agar tidak membuat hasil palsu.";state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}if(provider.status!=="succeeded"){state.status="running";state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}if(provider.outputUrl)state.completedUrls.push(provider.outputUrl);state.currentShot++;
+  if(state.currentShot>=state.plan.shots.length){if(!assemblyConfigured()){state.status="failed";state.stage="assembly-not-configured";state.message="Semua shot sudah selesai, tetapi mesin perakitan video final belum dikonfigurasi di server.";state.progress=90;state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}const assemblyTask=await submitAssembly(state);state.status="assembling";state.stage="assembly";state.progress=92;state.providerTaskId=assemblyTask;state.provider="";state.message="Semua shot selesai. Salvian mulai merakit satu video panjang.";state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}
+  const next=state.plan.shots[state.currentShot];const task=await submitProvider(next.provider,next,state.project,state.settings);state.provider=next.provider;state.providerTaskId=task.taskId;state.status="queued";state.stage="generation";state.progress=Math.min(88,Math.round(48+state.currentShot*(38/state.plan.shots.length)));state.message=`Salvian melanjutkan shot ${state.currentShot+1} dari ${state.plan.shots.length}.`;state.updatedAt=new Date().toISOString();await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
+ }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Status produksi gagal diproses."},{status:500});}}
