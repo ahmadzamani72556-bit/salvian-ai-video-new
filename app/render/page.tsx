@@ -2,7 +2,7 @@
 import "../studio.css";
 import "./render.css";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Film, Loader2, Play, Sparkles, XCircle, Activity, Video, Layers3, AudioLines, Scissors, Database, Clapperboard, Combine, Wand2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Film, Loader2, Play, Sparkles, XCircle, Activity, Video, Layers3, AudioLines, Scissors, Database, Clapperboard, GitBranch, Combine, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createProjectId, readProject, readActiveProject, readRenderSettings, readRenderJobs, saveRenderJob, saveRenderSettings, type VideoProject, type RenderJob, type ProductionLog } from "../../lib/project-store";
 
