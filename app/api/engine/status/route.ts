@@ -3,19 +3,17 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 /**
- * Public, non-secret readiness check for the production engine slot.
- * The real provider is intentionally not called here.
+ * Public readiness check for the native Salvian AI Video production engine.
+ * No external video provider is contacted by this endpoint.
  */
 export async function GET() {
-  const provider = process.env.MUREKA_RENDER_PROVIDER || "mureka";
-
   return NextResponse.json({
     ok: true,
     app: "SALVIAN AI VIDEO",
     engine: {
-      provider,
+      provider: "salvian-native",
       status: "pending",
-      adapter: "PendingRenderEngine",
+      adapter: "SalvianNativeRenderEngine",
       connected: false,
       apiKeyConfigured: false,
     },
@@ -27,6 +25,6 @@ export async function GET() {
       supportedFps: ["24 FPS", "30 FPS", "60 FPS"],
       supportedQualities: ["Standard", "High", "Maximum"],
     },
-    message: "Studio dan kontrak render siap. Sambungkan adapter engine produksi saat provider engine siap.",
+    message: "Native Salvian AI Video engine slot is ready. No external Creator or third-party video provider is connected.",
   });
 }
