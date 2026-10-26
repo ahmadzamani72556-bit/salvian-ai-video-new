@@ -11,6 +11,7 @@ export type RenderJobState = {
   stage: string;
   progress: number;
   currentShot: number;
+  phase?: "planning"|"generation"|"continuity"|"audio"|"assembly"|"finalizing";
   providerTaskId?: string;
   provider?: string;
   completedUrls: string[];
