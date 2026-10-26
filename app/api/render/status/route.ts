@@ -4,13 +4,14 @@ import { getProviderStatus, submitProvider } from "../../../../lib/video-provide
 
 function publicResult(state:any){
  const totalShots=Array.isArray(state.plan?.shots)?state.plan.shots.length:0;
- return {id:state.id,status:state.status,stage:state.stage,phase:state.phase||state.stage,progress:Math.max(0,Math.min(100,state.progress)),outputUrl:state.outputUrl,message:state.message,logs:state.logs,currentShot:Math.min(totalShots,state.currentShot||0),totalShots,completedShots:Array.isArray(state.completedUrls)?state.completedUrls.length:0,updatedAt:state.updatedAt};
+ const completedClips=Array.isArray(state.completedUrls)?state.completedUrls.slice(-8):[];
+ return {id:state.id,status:state.status,stage:state.stage,phase:state.phase||state.stage,progress:Math.max(0,Math.min(100,state.progress)),outputUrl:state.outputUrl,message:state.message,logs:state.logs,currentShot:Math.min(totalShots,state.currentShot||0),totalShots,completedShots:Array.isArray(state.completedUrls)?state.completedUrls.length:0,completedClips,currentClipUrl:completedClips.length?completedClips[completedClips.length-1]:undefined,updatedAt:state.updatedAt};
 }
 function assemblyConfigured(){return Boolean(process.env.MEDIA_ASSEMBLER_URL&&process.env.MEDIA_ASSEMBLER_API_KEY);}
 function numericFps(value:string){const n=Number(String(value||"").replace(/[^0-9.]/g,""));return Number.isFinite(n)&&n>0?n:30;}
 function addLog(state:any,stage:string,label:string,detail:string,progress:number){
  const last=state.logs?.[state.logs.length-1];
- if(last?.stage===stage&&last?.label===label)return;
+ if(last?.stage===stage&&last?.label===label&&last?.detail===detail)return;
  state.logs=[...(state.logs||[]),{at:new Date().toISOString(),stage,label,detail,progress}];
 }
 async function submitAssembly(state:any){
