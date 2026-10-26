@@ -1,0 +1,77 @@
+/* Salvian AI Video New — white card system
+   Visual-only override. No editor, render, auth, billing, or project-flow logic is changed. */
+.create-shell{background:#fff!important;color:#111827!important}
+.create-shell .studio-card,
+.create-shell .control,
+.create-shell .toggle,
+.create-shell .preview-panel,
+.create-shell .preview-meta>div,
+.create-shell .scene-item,
+.create-shell .scene-editor,
+.create-shell .audio-card,
+.create-shell .waveform,
+.create-shell .asset-card,
+.create-shell .subtitle-controls,
+.create-shell .render-panel,
+.create-shell .script-note,
+.create-shell .timeline-clip,
+.create-shell .lane-fill,
+.create-shell .lane-audio,
+.create-shell .result-card,
+.create-shell .script-preview,
+.create-shell .seo-box{background:#fff!important;color:#111827!important;border-color:#dfe3e8!important;box-shadow:0 2px 10px rgba(17,24,39,.04)}
+.create-shell .tab-bar{background:#fff!important;border-color:#dfe3e8!important}
+.create-shell .tab-bar button{color:#6b7280!important;background:#fff!important;border-color:transparent!important}
+.create-shell .tab-bar button::before{background:#eef1f4!important;color:#6b7280!important}
+.create-shell .tab-bar button.tab-active{background:#69d7ff!important;color:#06101d!important;border-color:#69d7ff!important}
+.create-shell .tab-bar button.tab-active::before{background:#fff!important;color:#06101d!important}
+.create-shell .control label,
+.create-shell .scene-editor label,
+.create-shell .subtitle-controls label,
+.create-shell .timeline-ruler,
+.create-shell .timeline-lanes span{color:#6b7280!important}
+.create-shell .control select,
+.create-shell .scene-editor input,
+.create-shell .scene-editor textarea,
+.create-shell .subtitle-controls select,
+.create-shell .large-editor{background:#fff!important;color:#111827!important;border-color:#dfe3e8!important}
+.create-shell .control select option,
+.create-shell .subtitle-controls select option{background:#fff;color:#111827}
+.create-shell .choice-row button{background:#fff!important;color:#4b5563!important;border-color:#dfe3e8!important}
+.create-shell .choice-row button.choice-active{background:#69d7ff!important;color:#06101d!important;border-color:#69d7ff!important}
+.create-shell .toggle-ui{background:#eef1f4!important;border-color:#dfe3e8!important}
+.create-shell .toggle-ui:after{background:#94a3b8!important}
+.create-shell .toggle-ui.is-on{background:#dff6ff!important;border-color:#69d7ff!important}
+.create-shell .toggle-ui.is-on:after{background:#1595c7!important}
+.create-shell .ready-pill{background:#f2fbf6!important;color:#28784d!important}
+.create-shell .preview-dot{background:#f2fbf6!important;color:#28784d!important}
+.create-shell .video-preview,
+.create-shell .subtitle-video,
+.create-shell .asset-placeholder{background:#f8fafc!important;color:#6b7280!important;border-color:#e5e7eb!important}
+.create-shell .preview-grid{display:none!important}
+.create-shell .preview-center{background:#111827!important;color:#fff!important}
+.create-shell .preview-meta span,
+.create-shell .asset-card small,
+.create-shell .audio-card span,
+.create-shell .scene-item p,
+.create-shell .scene-item small,
+.create-shell .render-panel span,
+.create-shell .script-note span{color:#6b7280!important}
+.create-shell .scene-item.scene-selected{background:#f2fbff!important;border-color:#69d7ff!important}
+.create-shell .scene-item>b,
+.create-shell .audio-icon{background:#f2fbff!important;color:#1595c7!important}
+.create-shell .script-note{background:#f8fafc!important}
+.create-shell .timeline-clip{background:#f8fcff!important;border-color:#cfeefa!important;color:#374151!important}
+.create-shell .timeline-clip b{color:#1595c7!important}
+.create-shell .lane-fill,.create-shell .lane-audio{background:#f8fafc!important;color:#6b7280!important}
+.create-shell .wave-bars i{background:#69d7ff66!important}
+.create-shell .render-panel{background:#f8fafc!important}
+.create-shell .error-box{background:#fff7ed!important;color:#9a3412!important;border-color:#fed7aa!important}
+.create-shell .studio-title p{color:#6b7280!important}
+.create-shell .studio-footer{border-color:#e5e7eb!important}
+.create-shell .preview-actions button{background:#fff!important;color:#4b5563!important;border-color:#dfe3e8!important}
+.create-shell .studio-scenes{scrollbar-color:#d1d5db transparent}
+@media(max-width:600px){
+  .create-shell .studio-card{box-shadow:0 1px 8px rgba(17,24,39,.035)}
+  .create-shell .control,.create-shell .toggle{box-shadow:none}
+}
