@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { LongFormShot, LongFormProvider } from "./long-form-engine";
 
 export type ProviderTask = { provider: LongFormProvider; taskId: string };
@@ -39,15 +40,52 @@ async function submitKling(shot: LongFormShot, project: any, settings: any): Pro
   return { provider: "kling-3.0-omni", taskId: String(id) };
 }
 
-function veoAuth() {
-  return requireValue("VEO_ACCESS_TOKEN", process.env.VEO_ACCESS_TOKEN || process.env.GOOGLE_CLOUD_ACCESS_TOKEN);
+function base64Url(value: string | Buffer) {
+  return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
+
+let veoTokenCache: { token: string; expiresAt: number } | null = null;
+
+async function getVeoAccessToken() {
+  const direct = process.env.VEO_ACCESS_TOKEN || process.env.GOOGLE_CLOUD_ACCESS_TOKEN;
+  if (direct) return direct;
+
+  const raw = requireValue("GOOGLE_SERVICE_ACCOUNT_JSON", process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  if (veoTokenCache && veoTokenCache.expiresAt > Date.now() + 60_000) return veoTokenCache.token;
+
+  let credentials: any;
+  try {
+    credentials = JSON.parse(raw);
+  } catch {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON tidak valid.");
+  }
+  const clientEmail = requireValue("service account client_email", credentials?.client_email);
+  const privateKey = requireValue("service account private_key", credentials?.private_key).replace(/\\n/g, "\n");
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "RS256", typ: "JWT", ...(credentials?.private_key_id ? { kid: credentials.private_key_id } : {}) };
+  const claim = { iss: clientEmail, scope: "https://www.googleapis.com/auth/cloud-platform", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 };
+  const unsigned = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(claim))}`;
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(unsigned);
+  signer.end();
+  const assertion = `${unsigned}.${base64Url(signer.sign(privateKey))}`;
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }).toString(),
+  });
+  const tokenData = await tokenResponse.json().catch(() => ({}));
+  if (!tokenResponse.ok || !tokenData?.access_token) throw new Error("Google Cloud tidak memberikan access token untuk Veo.");
+  veoTokenCache = { token: String(tokenData.access_token), expiresAt: Date.now() + Number(tokenData.expires_in || 3600) * 1000 };
+  return veoTokenCache.token;
+}
+
 function veoBase() { return clean(process.env.VEO_API_URL || "https://us-central1-aiplatform.googleapis.com/v1"); }
 function veoProject() { return requireValue("GOOGLE_CLOUD_PROJECT", process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT_ID); }
 function veoLocation() { return process.env.GOOGLE_CLOUD_LOCATION || "us-central1"; }
 
 async function submitVeo(shot: LongFormShot, project: any, settings: any): Promise<ProviderTask> {
-  const token = veoAuth(); const projectId = veoProject(); const location = veoLocation();
+  const token = await getVeoAccessToken(); const projectId = veoProject(); const location = veoLocation();
   const model = process.env.VEO_MODEL || "veo-3.1-generate-001";
   const base = veoBase();
   const response = await fetch(`${base}/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:predictLongRunning`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ instances: [{ prompt: shot.prompt }], parameters: { aspectRatio: ratio(project?.ratio), durationSeconds: Math.max(4, Math.min(8, Math.round(shot.duration))), resolution: resolution(settings.resolution), sampleCount: 1, ...(process.env.VEO_OUTPUT_STORAGE_URI ? { storageUri: process.env.VEO_OUTPUT_STORAGE_URI } : {}) } }) });
@@ -73,5 +111,5 @@ async function getKlingStatus(taskId: string): Promise<ProviderStatus> {
 }
 
 async function getVeoStatus(taskId: string): Promise<ProviderStatus> {
-  const token=veoAuth(); const base=veoBase(); const path=taskId.startsWith("http")?taskId:new URL(taskId,`${base}/`).toString(); const r=await fetch(path,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"}); const d=await r.json().catch(()=>({})); if(!r.ok)throw new Error("Status Veo tidak dapat dibaca."); if(!d?.done)return {status:"running",message:"Salvian sedang membuat shot visual."}; if(d?.error)return {status:"failed",message:"Shot Veo gagal diproduksi."}; const url=d?.response?.videos?.[0]?.gcsUri||d?.response?.generatedVideos?.[0]?.video?.uri||d?.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri; return {status:url?"succeeded":"failed",outputUrl:url,message:url?"Shot visual selesai.":"Shot Veo selesai tanpa output video."};
+  const token=await getVeoAccessToken(); const base=veoBase(); const path=taskId.startsWith("http")?taskId:new URL(taskId,`${base}/`).toString(); const r=await fetch(path,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"}); const d=await r.json().catch(()=>({})); if(!r.ok)throw new Error("Status Veo tidak dapat dibaca."); if(!d?.done)return {status:"running",message:"Salvian sedang membuat shot visual."}; if(d?.error)return {status:"failed",message:"Shot Veo gagal diproduksi."}; const url=d?.response?.videos?.[0]?.gcsUri||d?.response?.generatedVideos?.[0]?.video?.uri||d?.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri; return {status:url?"succeeded":"failed",outputUrl:url,message:url?"Shot visual selesai.":"Shot Veo selesai tanpa output video."};
 }
