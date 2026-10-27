@@ -1,4 +1,4 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { buildLongFormPlan } from "../../../lib/long-form-engine";
 import { ensureRenderJobsTable, saveRenderJobState, type RenderJobState } from "../../../lib/render-job-store";
 
@@ -18,7 +18,7 @@ export async function POST(request:Request){
   const readiness={concept:Boolean(project.script?.trim()),storyboard:Array.isArray(project.scenes)&&project.scenes.length>0,audio:Boolean(project.audio),visual:Boolean(project.visual),subtitle:Boolean(project.subtitle),timeline:Boolean(project.timeline)};
   if(!readiness.concept)return NextResponse.json({error:"Cerita wajib tersedia sebelum produksi dimulai.",readiness},{status:409});
   if(![5,6,7,8].includes(Number(project.duration)))return NextResponse.json({error:"Durasi long-form hanya mendukung 5, 6, 7, atau 8 menit."},{status:409});
-  const key=requestKey(project,settings),cachedId=renderRequestCache.get(key);if(cachedId)return NextResponse.json({renderJob:{id:cachedId,projectId:project.id,projectTitle:project.title,status:"queued",stage:"planning",progress:12,settings,readiness,message:`Job ID: ${cachedId} · Produksi sudah diterima.`,providerTaskId:"",provider:"",currentShot:0,totalShots:0,completedShots:0,completedClips:[],productionTimeline:[],updatedAt:new Date().toISOString()},duplicate:true},{status:202});
+  const key=requestKey(project,settings),cachedId=body.jobId?undefined:renderRequestCache.get(key);if(cachedId)return NextResponse.json({renderJob:{id:cachedId,projectId:project.id,projectTitle:project.title,status:"queued",stage:"planning",progress:12,settings,readiness,message:`Job ID: ${cachedId} · Produksi sudah diterima.`,providerTaskId:"",provider:"",currentShot:0,totalShots:0,completedShots:0,completedClips:[],productionTimeline:[],updatedAt:new Date().toISOString()},duplicate:true},{status:202});
   const plan=buildLongFormPlan(project);
   const first=plan.shots[0];
   if(!first)return NextResponse.json({error:"Tidak ada shot yang dapat diproduksi."},{status:409});
@@ -26,8 +26,10 @@ export async function POST(request:Request){
   const initialLogs=[{at:now,stage:"planning",label:"Produksi diterima",detail:`Salvian menyiapkan film ${project.duration} menit. Job ID: ${jobId}`,progress:2},...plan.logs.filter((item:any)=>["planning","music-analysis","shot-planning"].includes(item.stage)).map((item:any)=>({...item,at:now}))];
   const state:RenderJobState={id:jobId,projectId:project.id,projectTitle:project.title,project,settings,plan,status:"queued",stage:"planning",phase:"planning",progress:12,currentShot:0,providerTaskId:"",provider:first.provider,completedUrls:[],shotRuns:{},stageRuns:{planning:{startedAt:now}},message:`Job ID: ${jobId} · Menyiapkan SHOT 1/${plan.shots.length} untuk ${first.provider}.`,logs:initialLogs,createdAt:now,updatedAt:now};
   renderRequestCache.set(key,jobId);
-  after(async()=>{try{await ensureRenderJobsTable();await saveRenderJobState(state);}catch(error){console.error("[render] async job persistence failed",error);}});
+  await ensureRenderJobsTable();
+  await saveRenderJobState(state);
+  console.info("[render] job persisted",JSON.stringify({jobId,projectId:project.id,shotCount:plan.shots.length,provider:first.provider}));
   const renderJob={id:jobId,projectId:project.id,projectTitle:project.title,status:state.status,stage:state.stage,progress:state.progress,settings,readiness,createdAt:now,updatedAt:now,engine:"connected",output:null,message:state.message,providerTaskId:"",provider:first.provider,shotPlan:plan.shots,shotRuns:{},currentShot:0,totalShots:plan.shots.length,completedShots:0,completedClips:[],productionTimeline:initialLogs};
   return NextResponse.json({renderJob,duplicate:false},{status:202});
- }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Permintaan render tidak dapat diproses."},{status:400});}
+ }catch(error){console.error("[render] POST failed",error);return NextResponse.json({error:error instanceof Error?error.message:"Permintaan render tidak dapat diproses."},{status:500});}
 }
