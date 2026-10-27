@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 
+export type ShotRunState = { startedAt?: string; completedAt?: string; durationSeconds?: number; url?: string };
 export type RenderJobState = {
   id: string;
   projectId: string;
@@ -15,6 +16,7 @@ export type RenderJobState = {
   providerTaskId?: string;
   provider?: string;
   completedUrls: string[];
+  shotRuns?: Record<string, ShotRunState>;
   outputUrl?: string;
   message: string;
   logs: any[];
