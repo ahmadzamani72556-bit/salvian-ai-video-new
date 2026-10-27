@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { submitProviderLocal, getProviderStatusLocal } from "../../../../../lib/video-provider-adapters";
+import { submitProviderLocal, getProviderStatusLocal } from "../../../../lib/video-provider-adapters";
 
 export const maxDuration = 60;
 
