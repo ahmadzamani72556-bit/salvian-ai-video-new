@@ -74,13 +74,24 @@ function overlap(a:unknown,b:unknown){
 function hasNarrativeRepetition(scenes:any[]){
   if(scenes.length<2)return false;
   let repeated=0;
-  for(let i=1;i<scenes.length;i++){
-    const a=[scenes[i-1]?.title,scenes[i-1]?.visual,scenes[i-1]?.voice].join(" ");
-    const b=[scenes[i]?.title,scenes[i]?.visual,scenes[i]?.voice].join(" ");
-    if(overlap(a,b)>=0.72)repeated++;
+  const seenTitles=new Set<string>();
+  for(let i=0;i<scenes.length;i++){
+    const title=String(scenes[i]?.title||"").trim().toLowerCase();
+    if(title&&seenTitles.has(title))return true;
+    if(title)seenTitles.add(title);
+    if(i===0)continue;
+    const prev=scenes[i-1],current=scenes[i];
+    const prevVisual=String(prev?.visual||"").trim();
+    const currentVisual=String(current?.visual||"").trim();
+    const prevVoice=String(prev?.voice||"").trim();
+    const currentVoice=String(current?.voice||"").trim();
+    const exactVisual=prevVisual&&currentVisual&&prevVisual===currentVisual;
+    const exactVoice=prevVoice&&currentVoice&&prevVoice===currentVoice;
+    const semanticVisualOverlap=overlap(prevVisual,currentVisual);
+    const semanticVoiceOverlap=overlap(prevVoice,currentVoice);
+    if(exactVisual||exactVoice||(semanticVisualOverlap>=0.93&&semanticVoiceOverlap>=0.78))repeated++;
   }
-  const uniqueTitles=new Set(scenes.map(s=>String(s?.title||"").trim().toLowerCase()).filter(Boolean)).size;
-  return repeated>=2||uniqueTitles<Math.max(3,Math.ceil(scenes.length*0.7));
+  return repeated>=2;
 }
 
 function narrativeRepairPrompt(request:ProductionRequest,scenes:any[]){
