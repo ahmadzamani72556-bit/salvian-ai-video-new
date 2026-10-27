@@ -18,8 +18,8 @@ export class SalvianNativeRenderEngine implements RenderEngineAdapter {
    const now=new Date().toISOString();
    const state:RenderJobState={
     id:request.jobId,projectId:request.projectId,projectTitle:request.projectTitle,project:request.project,settings:request.settings,plan,
-    status:"queued",stage:"planning",progress:12,currentShot:0,providerTaskId:"",provider:first.provider,completedUrls:[],shotRuns:{},
-    message:"Salvian sedang menyusun film, membaca struktur cerita, dan menyiapkan urutan shot.",logs:plan.logs,createdAt:now,updatedAt:now
+    status:"queued",stage:"planning",progress:12,currentShot:0,providerTaskId:"",provider:first.provider,completedUrls:[],shotRuns:{},stageRuns:{planning:{startedAt:now}},
+    message:"Salvian sedang menyusun film, membaca struktur cerita, dan menyiapkan urutan shot.",logs:[],createdAt:now,updatedAt:now
    };
    await saveRenderJobState(state);
    return {status:"queued",stage:"planning",progress:12,engine:"connected",output:null,message:state.message,providerTaskId:request.jobId,logs:plan.logs};
