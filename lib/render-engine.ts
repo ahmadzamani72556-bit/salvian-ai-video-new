@@ -22,7 +22,7 @@ export class SalvianNativeRenderEngine implements RenderEngineAdapter {
     message:"Salvian sedang menyusun film, membaca struktur cerita, dan menyiapkan urutan shot.",logs:[],createdAt:now,updatedAt:now
    };
    await saveRenderJobState(state);
-   return {status:"queued",stage:"planning",progress:12,engine:"connected",output:null,message:state.message,providerTaskId:request.jobId,logs:plan.logs};
+   return {status:"queued",stage:"planning",progress:12,engine:"connected",output:null,message:state.message,providerTaskId:undefined,logs:plan.logs};
   }catch(e){return {status:"failed",stage:"storage-save-failed",progress:12,engine:"connected",output:null,message:e instanceof Error?e.message:"Job produksi tidak dapat disimpan.",logs:plan.logs};}
  }
 }
