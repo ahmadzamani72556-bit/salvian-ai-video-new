@@ -136,19 +136,43 @@ function normalizeLongFormProject(value:unknown,request:ProductionRequest){
   return {...input,title:String(input.title||request.topic),duration:request.duration,durationSeconds:targetSeconds,sourceType:request.sourceType||"text",sourcePrompt:request.sourcePrompt,sourceAssets:request.sourceAssets||[],musicAsset:request.musicAsset,scenes,subtitles,voice:input.voice&&typeof input.voice==="object"?input.voice:{status:request.sourceType==="song"?"not-required":"ready",style:request.voice,language:request.language},audio:input.audio&&typeof input.audio==="object"?{...input.audio,durationSeconds:targetSeconds}:{voice:request.voice,music:request.music,language:request.language,durationSeconds:targetSeconds,sourceMode:request.sourceType||"text"},visual:input.visual&&typeof input.visual==="object"?input.visual:{style:request.style,ratio:request.ratio,sourceMode:request.sourceType||"text"},timeline:input.timeline&&typeof input.timeline==="object"?{...input.timeline,pacing:request.smartPacing?"Smart":"Manual",durationSeconds:targetSeconds,sourceMode:request.sourceType||"text"}:{pacing:request.smartPacing?"Smart":"Manual",durationSeconds:targetSeconds,sourceMode:request.sourceType||"text"},render:{status:"queued",format:"MP4",resolution:"1080p",durationSeconds:targetSeconds},productionLogs:[{at:new Date().toISOString(),stage:"director",label:"Menyusun film utuh",detail:`AI Director membangun ${scenes.length} scene yang saling berkembang.`,progress:12},{at:new Date().toISOString(),stage:"storyboard",label:`Storyboard ${scenes.length} scene selesai`,detail:"Setiap scene memiliki tujuan dan kejadian berbeda.",progress:32},{at:new Date().toISOString(),stage:"continuity",label:"Menyiapkan reference frame dan continuity state",detail:"Identitas karakter, lokasi, wardrobe, lighting, dan state antar-scene dikunci.",progress:52},{at:new Date().toISOString(),stage:"timeline",label:"Menyiapkan timeline master",detail:"Durasi seluruh scene sudah diseimbangkan ke target final.",progress:72}],seo:input.seo||{title:request.topic,description:`Video ${request.sourceType||"text"} tentang ${request.topic}.`,tags:[request.topic,request.language,"SALVIAN AI VIDEO"]}};
 }
 
+async function providerError(response:Response){
+  let detail="";
+  try{const body=await response.json();detail=String(body?.error?.message||body?.error?.code||body?.message||"");}catch{try{detail=(await response.text()).slice(0,500);}catch{}}
+  return `AI Story Director gagal (${response.status}).${detail?` ${detail}`:" Periksa model OPENAI_MODEL dan OPENAI_API_KEY di Vercel."}`;
+}
+
+async function callOpenAI(apiKey:string,model:string,input:string){
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),90000);
+  try{
+    const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({model,input,max_output_tokens:16000}),signal:controller.signal});
+    if(!response.ok)throw new Error(await providerError(response));
+    const data=await response.json();
+    const raw=String(data.output_text||"").trim();
+    if(!raw)throw new Error("AI Story Director tidak mengembalikan isi storyboard.");
+    return raw;
+  }catch(error){
+    if(error instanceof Error&&error.name==="AbortError")throw new Error("AI Story Director timeout setelah 90 detik.");
+    throw error;
+  }finally{clearTimeout(timeout);}
+}
+
+function parseJson(raw:string){
+  const cleaned=raw.replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"").trim();
+  try{return JSON.parse(cleaned);}catch{const first=cleaned.indexOf("{");const last=cleaned.lastIndexOf("}");if(first>=0&&last>first){try{return JSON.parse(cleaned.slice(first,last+1));}catch{}}throw new Error("AI Story Director mengembalikan format storyboard yang tidak valid.");}
+}
+
 class OpenAIProductionEngine implements ProductionEngine {
   async generate(request:ProductionRequest):Promise<ProductionResult>{
     const apiKey=process.env.OPENAI_API_KEY;
     if(!apiKey)throw new Error("AI Story Director belum dikonfigurasi. Masukkan OPENAI_API_KEY di server sebelum membuat storyboard produksi.");
-    const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({model:process.env.OPENAI_MODEL||"gpt-5-mini",input:buildPrompt(request)})});
-    if(!response.ok)throw new Error("Layanan AI Story Director sedang tidak tersedia.");
-    const data=await response.json();const raw=data.output_text||"";let project:unknown;
-    try{project=JSON.parse(raw);}catch{throw new Error("AI Story Director mengembalikan format storyboard yang tidak valid.");}
+    const model=process.env.OPENAI_MODEL||"gpt-6-luna";
+    const raw=await callOpenAI(apiKey,model,buildPrompt(request));
+    const project=parseJson(raw);
     try{return {mode:"ai",project:{...normalizeLongFormProject(project,request),status:"Script & scene siap"}};}catch(error){
       if(!(error instanceof Error)||!error.message.includes("terlalu berulang"))throw error;
-      const repair=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({model:process.env.OPENAI_MODEL||"gpt-5-mini",input:narrativeRepairPrompt(request,(project as any)?.scenes||[])})});
-      if(!repair.ok)throw new Error("AI Story Director gagal memperbaiki storyboard yang berulang.");
-      const repairData=await repair.json();let repaired:unknown;try{repaired=JSON.parse(repairData.output_text||"");}catch{throw new Error("AI Story Director mengembalikan storyboard perbaikan yang tidak valid.");}
+      const repaired=parseJson(await callOpenAI(apiKey,model,narrativeRepairPrompt(request,(project as any)?.scenes||[])));
       return {mode:"ai",project:{...normalizeLongFormProject({...project,scenes:repaired},request),status:"Script & scene siap"}};
     }
   }
