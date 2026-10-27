@@ -11,7 +11,7 @@ function requestKey(project:RenderProject,settings:RenderSettings){return JSON.s
 export async function POST(request:Request){
  try{
   const body=(await request.json()) as {project?:RenderProject;settings?:RenderSettings;jobId?:string};
-  const project=body.project,settings=body.settings;
+  const inputProject=body.project,settings=body.settings;const project=inputProject?{...inputProject,script:String(inputProject.script||inputProject.sourcePrompt||inputProject.topic||"").trim()}:undefined;
   if(!project?.id||!project.title)return NextResponse.json({error:"Project render tidak valid."},{status:400});
   if(!settings||settings.projectId!==project.id||settings.projectTitle!==project.title)return NextResponse.json({error:"Pengaturan render tidak cocok dengan project."},{status:400});
   if(!ALLOWED_RESOLUTIONS.has(settings.resolution)||!ALLOWED_FPS.has(settings.fps)||!ALLOWED_QUALITY.has(settings.quality)||!ALLOWED_FORMATS.has(settings.format))return NextResponse.json({error:"Pengaturan render tidak didukung."},{status:400});
