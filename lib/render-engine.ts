@@ -1,4 +1,4 @@
-import { buildLongFormPlan, missingProviderConfiguration, type ProductionLog } from "./long-form-engine";
+import { buildLongFormPlan, type ProductionLog } from "./long-form-engine";
 import { ensureRenderJobsTable, saveRenderJobState, type RenderJobState } from "./render-job-store";
 
 export type RenderEngineRequest={jobId:string;projectId:string;projectTitle:string;project:any;settings:any};
@@ -11,11 +11,11 @@ export class SalvianNativeRenderEngine implements RenderEngineAdapter {
   if(![5,6,7,8].includes(minutes)) return {status:"failed",stage:"invalid-duration",progress:0,engine:"pending",output:null,message:"Durasi long-form hanya mendukung 5, 6, 7, atau 8 menit."};
   let plan;
   try{plan=buildLongFormPlan(request.project);}catch(e){return {status:"failed",stage:"planning-failed",progress:0,engine:"pending",output:null,message:e instanceof Error?e.message:"Gagal menyusun rencana long-form."};}
-  const missing=missingProviderConfiguration(plan);
-  if(missing.length) return {status:"failed",stage:"engine-not-configured",progress:20,engine:"pending",output:null,message:"Arsitektur multi-engine sudah siap, tetapi kredensial engine produksi belum diisi di server.",logs:plan.logs};
-  try{await ensureRenderJobsTable();}catch(e){return {status:"failed",stage:"storage-not-configured",progress:18,engine:"pending",output:null,message:e instanceof Error?e.message:"Penyimpanan job produksi belum dikonfigurasi.",logs:plan.logs};}
+  try{await ensureRenderJobsTable();}catch(e){return {status:"failed",stage:"storage-not-configured",progress:8,engine:"pending",output:null,message:e instanceof Error?e.message:"Penyimpanan job produksi belum dikonfigurasi.",logs:plan.logs};}
+
   const first=plan.shots[0];
   if(!first) return {status:"failed",stage:"planning-failed",progress:0,engine:"pending",output:null,message:"Tidak ada shot yang dapat diproduksi.",logs:plan.logs};
+
   try{
    const now=new Date().toISOString();
    const state:RenderJobState={
