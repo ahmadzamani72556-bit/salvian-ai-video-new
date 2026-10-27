@@ -17,7 +17,7 @@ export type ProductionRequest = {
   musicAsset?: { name:string; durationSeconds?:number; mimeType?:string; syncMode?:string };
 };
 
-export type ProductionResult = { mode: "ai"; project: Record<string, any> };
+export type ProductionResult = { mode: "ai"|"local-director"; project: Record<string, any> };
 export interface ProductionEngine { generate(request: ProductionRequest): Promise<ProductionResult>; }
 
 function exactSceneDurations(source:any[], targetSeconds:number){
@@ -65,14 +65,12 @@ function sceneCount(duration:number){
 function normalizedWords(value:unknown){
   return String(value||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>3);
 }
-
 function overlap(a:unknown,b:unknown){
   const aa=new Set(normalizedWords(a)),bb=new Set(normalizedWords(b));
   if(!aa.size||!bb.size)return 0;
   let common=0;for(const w of aa)if(bb.has(w))common++;
   return common/Math.max(aa.size,bb.size);
 }
-
 function hasNarrativeRepetition(scenes:any[]){
   if(scenes.length<2)return false;
   let repeated=0;
@@ -136,10 +134,34 @@ function normalizeLongFormProject(value:unknown,request:ProductionRequest){
   return {...input,title:String(input.title||request.topic),duration:request.duration,durationSeconds:targetSeconds,sourceType:request.sourceType||"text",sourcePrompt:request.sourcePrompt,sourceAssets:request.sourceAssets||[],musicAsset:request.musicAsset,scenes,subtitles,voice:input.voice&&typeof input.voice==="object"?input.voice:{status:request.sourceType==="song"?"not-required":"ready",style:request.voice,language:request.language},audio:input.audio&&typeof input.audio==="object"?{...input.audio,durationSeconds:targetSeconds}:{voice:request.voice,music:request.music,language:request.language,durationSeconds:targetSeconds,sourceMode:request.sourceType||"text"},visual:input.visual&&typeof input.visual==="object"?input.visual:{style:request.style,ratio:request.ratio,sourceMode:request.sourceType||"text"},timeline:input.timeline&&typeof input.timeline==="object"?{...input.timeline,pacing:request.smartPacing?"Smart":"Manual",durationSeconds:targetSeconds,sourceMode:request.sourceType||"text"}:{pacing:request.smartPacing?"Smart":"Manual",durationSeconds:targetSeconds,sourceMode:request.sourceType||"text"},render:{status:"queued",format:"MP4",resolution:"1080p",durationSeconds:targetSeconds},productionLogs:[{at:new Date().toISOString(),stage:"director",label:"Menyusun film utuh",detail:`AI Director membangun ${scenes.length} scene yang saling berkembang.`,progress:12},{at:new Date().toISOString(),stage:"storyboard",label:`Storyboard ${scenes.length} scene selesai`,detail:"Setiap scene memiliki tujuan dan kejadian berbeda.",progress:32},{at:new Date().toISOString(),stage:"continuity",label:"Menyiapkan reference frame dan continuity state",detail:"Identitas karakter, lokasi, wardrobe, lighting, dan state antar-scene dikunci.",progress:52},{at:new Date().toISOString(),stage:"timeline",label:"Menyiapkan timeline master",detail:"Durasi seluruh scene sudah diseimbangkan ke target final.",progress:72}],seo:input.seo||{title:request.topic,description:`Video ${request.sourceType||"text"} tentang ${request.topic}.`,tags:[request.topic,request.language,"SALVIAN AI VIDEO"]}};
 }
 
+function buildLocalDirectorProject(request:ProductionRequest){
+  const count=sceneCount(request.duration);
+  const seed=(request.sourcePrompt||request.topic||"cerita pengguna").trim();
+  const arc=[
+    ["Pembukaan","Establishing shot sinematik memperlihatkan dunia cerita dan suasana sebelum konflik dimulai."],
+    ["Tokoh Utama","Perkenalkan tokoh utama melalui aksi nyata, ekspresi, kostum, dan lingkungan yang konsisten."],
+    ["Pemicu","Sebuah kejadian tak terduga mengubah keadaan dan memaksa tokoh utama bertindak."],
+    ["Reaksi","Tokoh utama merespons pemicu, mengambil keputusan, lalu bergerak menuju sumber masalah."],
+    ["Pertemuan","Tokoh utama berhadapan dengan pihak atau rintangan pertama; kamera mengikuti aksi secara dinamis."],
+    ["Eskalasi","Konflik membesar, lingkungan ikut berubah, dan gerakan kamera menunjukkan tekanan yang meningkat."],
+    ["Komplikasi","Masalah baru muncul dari keputusan sebelumnya dan membuat tujuan tokoh utama semakin sulit."],
+    ["Titik Balik","Tokoh utama menemukan peluang atau informasi penting yang mengubah arah cerita."],
+    ["Krisis","Situasi mencapai titik paling berbahaya; tokoh utama menghadapi konsekuensi terbesar."],
+    ["Klimaks","Konfrontasi utama terjadi dengan aksi fisik dan perubahan keadaan yang jelas sampai konflik mencapai puncak."],
+    ["Dampak","Debu dan ketegangan mereda; akibat dari klimaks terlihat pada karakter dan lingkungan."],
+    ["Penutup","Cerita ditutup dengan keadaan baru yang merupakan hasil langsung dari seluruh kejadian sebelumnya."]
+  ];
+  const stages=Array.from({length:count},(_,i)=>arc[i%arc.length]);
+  const scenes=stages.map(([title,action],i)=>({number:i+1,title:`${title} ${i+1}`,visual:`${action} Cerita sumber: ${seed}. Jangan mengulang shot sebelumnya; lanjutkan keadaan dari scene ${Math.max(1,i)} dan buat perubahan baru yang terlihat. Gaya ${request.style}, rasio ${request.ratio}, bahasa visual natural, pencahayaan konsisten, gerakan kamera sinematik, karakter dan properti konsisten.`,voice:`${title}: keadaan cerita berkembang sebagai akibat langsung dari kejadian sebelumnya.`,duration:1}));
+  const project=normalizeLongFormProject({title:request.topic,scenes,subtitles:scenes.map((s:any)=>({start:s.number-1,end:s.number,text:s.voice}))},request);
+  project.productionLogs=[{at:new Date().toISOString(),stage:"director",label:"Salvian Director menyusun film secara lokal",detail:`OpenAI tidak tersedia saat ini; alur produksi tetap berjalan dengan ${scenes.length} scene terstruktur.`,progress:12},{at:new Date().toISOString(),stage:"storyboard",label:`Storyboard ${scenes.length} scene siap`,detail:"Scene dibangun progresif dari opening sampai resolution tanpa mengulang satu prompt menjadi seluruh film.",progress:32},...(project.productionLogs||[])];
+  return project;
+}
+
 async function providerError(response:Response){
   let detail="";
   try{const body=await response.json();detail=String(body?.error?.message||body?.error?.code||body?.message||"");}catch{try{detail=(await response.text()).slice(0,500);}catch{}}
-  return `AI Story Director gagal (${response.status}).${detail?` ${detail}`:" Periksa model OPENAI_MODEL dan OPENAI_API_KEY di Vercel."}`;
+  const error:any=new Error(`AI Story Director gagal (${response.status}).${detail?` ${detail}`:" Periksa model OPENAI_MODEL dan OPENAI_API_KEY di Vercel."}`);error.status=response.status;return error;
 }
 
 async function callOpenAI(apiKey:string,model:string,input:string){
@@ -147,7 +169,7 @@ async function callOpenAI(apiKey:string,model:string,input:string){
   const timeout=setTimeout(()=>controller.abort(),90000);
   try{
     const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json",Authorization:`Bearer ${apiKey}`},body:JSON.stringify({model,input,max_output_tokens:16000}),signal:controller.signal});
-    if(!response.ok)throw new Error(await providerError(response));
+    if(!response.ok)throw await providerError(response);
     const data=await response.json();
     const raw=String(data.output_text||"").trim();
     if(!raw)throw new Error("AI Story Director tidak mengembalikan isi storyboard.");
@@ -165,15 +187,24 @@ function parseJson(raw:string){
 
 class OpenAIProductionEngine implements ProductionEngine {
   async generate(request:ProductionRequest):Promise<ProductionResult>{
-    const apiKey=process.env.OPENAI_API_KEY;
-    if(!apiKey)throw new Error("AI Story Director belum dikonfigurasi. Masukkan OPENAI_API_KEY di server sebelum membuat storyboard produksi.");
+    const apiKey=process.env.OPENAI_API_KEY?.trim();
+    if(!apiKey){return {mode:"local-director",project:{...buildLocalDirectorProject(request),status:"Script & scene siap — mode Director lokal"}};}
     const model=process.env.OPENAI_MODEL||"gpt-6-luna";
-    const raw=await callOpenAI(apiKey,model,buildPrompt(request));
-    const project=parseJson(raw);
-    try{return {mode:"ai",project:{...normalizeLongFormProject(project,request),status:"Script & scene siap"}};}catch(error){
-      if(!(error instanceof Error)||!error.message.includes("terlalu berulang"))throw error;
-      const repaired=parseJson(await callOpenAI(apiKey,model,narrativeRepairPrompt(request,(project as any)?.scenes||[])));
-      return {mode:"ai",project:{...normalizeLongFormProject({...project,scenes:repaired},request),status:"Script & scene siap"}};
+    try{
+      const raw=await callOpenAI(apiKey,model,buildPrompt(request));
+      const project=parseJson(raw);
+      try{return {mode:"ai",project:{...normalizeLongFormProject(project,request),status:"Script & scene siap"}};}catch(error){
+        if(!(error instanceof Error)||!error.message.includes("terlalu berulang"))throw error;
+        const repaired=parseJson(await callOpenAI(apiKey,model,narrativeRepairPrompt(request,(project as any)?.scenes||[])));
+        return {mode:"ai",project:{...normalizeLongFormProject({...project,scenes:repaired},request),status:"Script & scene siap"}};
+      }
+    }catch(error:any){
+      const status=Number(error?.status||0);const message=String(error?.message||"").toLowerCase();
+      if(status===429||/billing|account is not active|insufficient.?quota|credit.?balance|spend limit/.test(message)){
+        console.warn("SALVIAN DIRECTOR: OpenAI unavailable; continuing with local production planner.");
+        return {mode:"local-director",project:{...buildLocalDirectorProject(request),status:"Script & scene siap — mode Director lokal"}};
+      }
+      throw error;
     }
   }
 }
