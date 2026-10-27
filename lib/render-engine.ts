@@ -12,15 +12,13 @@ export class SalvianNativeRenderEngine implements RenderEngineAdapter {
   let plan;
   try{plan=buildLongFormPlan(request.project);}catch(e){return {status:"failed",stage:"planning-failed",progress:0,engine:"pending",output:null,message:e instanceof Error?e.message:"Gagal menyusun rencana long-form."};}
   try{await ensureRenderJobsTable();}catch(e){return {status:"failed",stage:"storage-not-configured",progress:8,engine:"pending",output:null,message:e instanceof Error?e.message:"Penyimpanan job produksi belum dikonfigurasi.",logs:plan.logs};}
-
   const first=plan.shots[0];
   if(!first) return {status:"failed",stage:"planning-failed",progress:0,engine:"pending",output:null,message:"Tidak ada shot yang dapat diproduksi.",logs:plan.logs};
-
   try{
    const now=new Date().toISOString();
    const state:RenderJobState={
     id:request.jobId,projectId:request.projectId,projectTitle:request.projectTitle,project:request.project,settings:request.settings,plan,
-    status:"queued",stage:"planning",progress:12,currentShot:0,providerTaskId:"",provider:first.provider,completedUrls:[],
+    status:"queued",stage:"planning",progress:12,currentShot:0,providerTaskId:"",provider:first.provider,completedUrls:[],shotRuns:{},
     message:"Salvian sedang menyusun film, membaca struktur cerita, dan menyiapkan urutan shot.",logs:plan.logs,createdAt:now,updatedAt:now
    };
    await saveRenderJobState(state);
