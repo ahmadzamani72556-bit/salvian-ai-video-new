@@ -95,7 +95,7 @@ function hasNarrativeRepetition(scenes:any[]){
 }
 
 function narrativeRepairPrompt(request:ProductionRequest,scenes:any[]){
-  return `Anda adalah editor cerita Salvian. Perbaiki storyboard berikut agar menjadi film ${request.duration} menit yang benar-benar berkembang, bukan pengulangan prompt.
+  return `Anda adalah editor cerita Salvian. Perbaiki storyboard berikut agar menjadi video ${Math.round(request.duration*60)} detik yang benar-benar berkembang, bukan pengulangan prompt.
 TOPIK: ${request.sourcePrompt||request.topic}
 STORYBOARD SAAT INI:
 ${JSON.stringify(scenes)}
@@ -114,7 +114,7 @@ function buildPrompt(request:ProductionRequest){
   const count=sceneCount(request.duration);
   return `Anda adalah SALVIAN DIRECTOR, sutradara AI untuk produksi video long-form. ${sourceDescription(request)}
 TOPIK/ALUR PENGGUNA: ${request.sourcePrompt||request.topic}
-TARGET DURASI: ${request.duration} menit (${request.duration*60} detik)
+TARGET DURASI: ${Math.round(request.duration*60)} detik
 GAYA: ${request.style}; RASIO: ${request.ratio}; BAHASA: ${request.language}; VOICE: ${request.voice}; MUSIK: ${request.music}.
 Buat paket produksi lengkap untuk satu film utuh. WAJIB menghasilkan tepat ${count} scene yang berbeda dan progresif.
 Jangan memperpanjang durasi dengan mengulang cerita. Durasi panjang harus dicapai dengan menambah peristiwa baru, sebab-akibat, konflik, keputusan, perubahan lokasi/waktu, konsekuensi, dan payoff.
@@ -124,7 +124,7 @@ Antar-scene harus tersambung secara sebab-akibat. Scene berikutnya harus dimulai
 Jaga identitas karakter, kostum, lokasi, properti, pencahayaan, dan arah gerak tetap konsisten kecuali cerita memang mengubahnya.
 Untuk mode lagu, jadikan perubahan bagian lagu sebagai pemicu perubahan visual dan pacing. Untuk mode foto, gunakan foto sebagai anchor dan buat kejadian baru di sekitarnya.
 Buat juga hook, script panjang, subtitles, voice, audio, visual, timeline, dan seo.
-Durasi semua scene harus total tepat ${request.duration*60} detik.
+Durasi semua scene harus total tepat ${Math.round(request.duration*60)} detik.
 Jangan gunakan markdown. Output JSON valid saja.`;
 }
 
@@ -132,7 +132,7 @@ function normalizeLongFormProject(value:unknown,request:ProductionRequest){
   const input=value&&typeof value==="object"?value as Record<string,any>:{};
   const sourceScenes=Array.isArray(input.scenes)&&input.scenes.length?input.scenes.filter(Boolean):[];
   if(!sourceScenes.length)throw new Error("AI Director tidak menghasilkan storyboard scene.");
-  const targetSeconds=request.duration*60;
+  const targetSeconds=Math.round(request.duration*60);
   const durations=exactSceneDurations(sourceScenes,targetSeconds);
   let cursor=0;
   const scenes=sourceScenes.map((scene:any,index:number)=>{
