@@ -46,6 +46,72 @@ export async function GET(request:Request){
   }
   if(["succeeded","failed","cancelled"].includes(state.status))return NextResponse.json({result:publicResult(state)});
 
+  // Parallel long-form pipeline: submit every storyboard shot, track each task independently,
+  // preserve storyboard order, retry transient failures, and assemble only after all clips finish.
+  if(state.parallelMode || (state.stage==="planning"&&!state.providerTaskId)){
+   const shots=Array.isArray(state.plan?.shots)?state.plan.shots:[];
+   if(!state.parallelMode){
+    state.parallelMode=true;state.shotRuns=state.shotRuns||{};state.status="running";state.stage="generation";state.phase="generation";state.progress=20;
+    state.message=`Mengirim ${shots.length} visual secara bersamaan. Hasil akan dirangkai mengikuti urutan cerita.`;
+    addLog(state,"generation","Memulai render paralel",`${shots.length} shot dikirim sebagai tugas independen; penggabungan menunggu semua visual selesai.`,20);
+    const submissions=await Promise.all(shots.map(async(shot:any,index:number)=>{
+     const id=String(shot.id||`shot-${index+1}`);
+     try{
+      if(!providerReady(shot.provider))throw new Error(`Mesin ${shot.provider} belum siap.`);
+      const task=await submitProvider(shot.provider,shot,state.project,state.settings);
+      return {id,shot,run:{startedAt:now,attempts:1,provider:shot.provider,taskId:task.taskId,status:"running"}};
+     }catch(error){
+      return {id,shot,run:{startedAt:now,attempts:0,provider:shot.provider,status:"failed",error:error instanceof Error?error.message:"Pengiriman shot gagal."}};
+     }
+    }));
+    for(const item of submissions)state.shotRuns[item.id]=item.run;
+    const sent=submissions.filter(x=>x.run.status==="running").length;
+    state.provider="parallel";state.providerTaskId="parallel";state.currentShot=0;state.progress=20;
+    state.message=`${sent}/${shots.length} visual telah dikirim ke mesin. Shot berjalan bersamaan.`;
+    state.updatedAt=now;await saveRenderJobState(state);
+    return NextResponse.json({result:publicResult(state)});
+   }
+
+   const runs=state.shotRuns||{};let completed=0;let active=0;let permanentFailures:string[]=[];
+   const updates=await Promise.all(shots.map(async(shot:any,index:number)=>{
+    const id=String(shot.id||`shot-${index+1}`);const run=runs[id]||{};
+    if(run.status==="completed"&&run.url)return {id,run,kind:"completed"};
+    if(run.status==="running"&&run.taskId){
+     try{
+      const result=await getProviderStatus(run.provider||shot.provider,run.taskId);
+      if(result.status==="succeeded"&&result.outputUrl)return {id,run:{...run,status:"completed",url:result.outputUrl,completedAt:now},kind:"completed"};
+      if(result.status==="failed")return {id,run:{...run,status:"failed",error:result.message||"Engine menandai shot gagal."},kind:"failed"};
+      return {id,run:{...run,status:"running"},kind:"active"};
+     }catch(error){return {id,run:{...run,status:"failed",error:error instanceof Error?error.message:"Status engine gagal dibaca."},kind:"failed"};}
+    }
+    if(run.status==="failed"){
+     const attempts=Number(run.attempts)||0;
+     if(attempts<3){
+      try{const task=await submitProvider(run.provider||shot.provider,shot,state.project,state.settings);return {id,run:{...run,status:"running",taskId:task.taskId,provider:run.provider||shot.provider,attempts:attempts+1,startedAt:now},kind:"active"};}
+      catch(error){const nextAttempts=attempts+1;return {id,run:{...run,attempts:nextAttempts,error:error instanceof Error?error.message:"Retry pengiriman gagal.",status:"failed"},kind:nextAttempts>=3?"permanent":"failed"};}
+     }
+     return {id,run,kind:"permanent"};
+    }
+    try{const task=await submitProvider(shot.provider,shot,state.project,state.settings);return {id,run:{...run,status:"running",taskId:task.taskId,provider:shot.provider,attempts:1,startedAt:now},kind:"active"};}
+    catch(error){return {id,run:{status:"failed",provider:shot.provider,attempts:1,error:error instanceof Error?error.message:"Pengiriman shot gagal."},kind:"failed"};}
+   }));
+   for(const item of updates){runs[item.id]=item.run;if(item.kind==="completed")completed++;else if(item.kind==="active")active++;else if(item.kind==="permanent")permanentFailures.push(item.id);else active++;}
+   state.shotRuns=runs;state.completedUrls=shots.map((shot:any,index:number)=>runs[String(shot.id||`shot-${index+1}`)]?.url).filter((url:any)=>typeof url==="string"&&url.length>0);
+   state.currentShot=completed;state.progress=Math.min(88,Math.max(20,Math.round(20+(completed/Math.max(1,shots.length))*68)));
+   if(permanentFailures.length){
+    state.status="failed";state.stage="generation-failed";state.phase="generation";state.message=`Shot ${permanentFailures.join(", ")} gagal setelah percobaan otomatis. Visual lain yang selesai tetap tersimpan.`;
+    addLog(state,"generation","Shot gagal permanen",state.message,state.progress);state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
+   }
+   if(completed===shots.length){
+    state.status="running";state.stage="audio";state.phase="audio";state.progress=89;state.providerTaskId="";state.provider="";startStage(state,"audio",now);
+    state.message="Semua visual selesai. Salvian memulai penggabungan otomatis sesuai urutan storyboard.";
+    addLog(state,"audio","Semua visual selesai","Semua clip tersedia; mulai penggabungan mengikuti urutan cerita.",89);
+    state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
+   }
+   state.status="running";state.stage="generation";state.phase="generation";state.message=`${completed}/${shots.length} visual selesai; ${active} tugas masih diproses atau sedang dicoba ulang.`;
+   state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
+  }
+
   if(state.stage==="planning"&&!state.providerTaskId){
    const first=state.plan.shots[state.currentShot||0];if(!first)throw new Error("Shot pertama tidak ditemukan.");
    if(!providerReady(first.provider)){state.status="failed";state.stage="engine-not-ready";state.phase="planning";state.progress=Math.max(16,Number(state.progress)||12);state.message="Mesin visual untuk shot pertama belum siap di Production. Produksi dihentikan tanpa membuat hasil palsu.";addLog(state,"planning","Mesin belum siap",state.message,state.progress);state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}
