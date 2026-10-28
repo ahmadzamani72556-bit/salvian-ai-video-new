@@ -41,11 +41,6 @@ export async function GET(request:Request){
  try{
   const state=await getRenderJobState(jobId);if(!state)return NextResponse.json({error:"Job produksi tidak ditemukan."},{status:404});
   const totalShots=Math.max(1,state.plan?.shots?.length||1);const now=new Date().toISOString();ensureStageRuns(state);
-  // Recover older jobs that stopped on a single failed visual; keep all completed clips.
-  if(!(state as any).parallelMode&&state.status==="failed"&&state.stage==="generation-failed"&&state.currentShot<totalShots){
-   const failedShot=state.plan?.shots?.[state.currentShot];const attempts=Number(state.shotRuns?.[failedShot?.id]?.attempts)||0;
-   if(failedShot&&attempts<3){state.status="running";state.stage="continuity";state.phase="continuity";state.providerTaskId="";state.provider="";state.message=`Melanjutkan dari shot ${state.currentShot+1}/${totalShots}; clip yang sudah selesai tetap dipertahankan.`;state.updatedAt=now;addLog(state,"continuity","Melanjutkan produksi",`Melanjutkan dari shot ${state.currentShot+1}; tidak mengulang clip yang sudah selesai.`,state.progress);await saveRenderJobState(state);}
-  }
   if(["succeeded","failed","cancelled"].includes(state.status))return NextResponse.json({result:publicResult(state)});
 
   // Parallel long-form pipeline: submit every storyboard shot, track each task independently,
