@@ -7,9 +7,9 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { createProjectId, readActiveProject, readProject, saveActiveProject, type SourceAsset, type SourceType, type VideoProject } from "../../lib/project-store";
 
-const durations=[5,6,7,8];
+const durations=[0.25,0.5,1];
 const modes:{id:SourceType;title:string;description:string;icon:any}[]=[
-  {id:"text",title:"Tulisan → Video Panjang",description:"Tulis ide atau cerita. Salvian menyusun film utuh 5–8 menit.",icon:Sparkles},
+  {id:"text",title:"Tulisan → Video Panjang",description:"Tulis ide atau cerita. Salvian membuat video pendek 15–60 detik dengan satu hasil final.",icon:Sparkles},
   {id:"song",title:"Lagu → Clip Video Panjang",description:"Masukkan lagu yang sudah jadi. Salvian menyusun visual mengikuti struktur dan ritmenya.",icon:Music2},
   {id:"photo",title:"Foto → Video Panjang",description:"Masukkan foto dan alur cerita. Salvian menjaga foto sebagai reference visual sepanjang film.",icon:ImageIcon},
 ];
@@ -26,7 +26,7 @@ export default function CreatePage(){
  const router=useRouter();
  const [mode,setMode]=useState<SourceType>("text");
  const [prompt,setPrompt]=useState("");
- const [duration,setDuration]=useState(7);
+ const [duration,setDuration]=useState(0.5);
  const [style,setStyle]=useState("Cinematic");
  const [ratio,setRatio]=useState("16:9");
  const [language,setLanguage]=useState("Indonesia");
@@ -53,7 +53,7 @@ export default function CreatePage(){
    if(requestedMode&&modes.some(m=>m.id===requestedMode))setMode(requestedMode);
    if(existing){
      setProjectId(existing.id);setTitle(existing.title);setMode(existing.sourceType||requestedMode||"text");
-     setPrompt(existing.sourcePrompt||existing.topic||"");setDuration(existing.duration||7);setStyle(existing.style||"Cinematic");
+     setPrompt(existing.sourcePrompt||existing.topic||"");setDuration([0.25,0.5,1].includes(Number(existing.duration))?Number(existing.duration):0.5);setStyle(existing.style||"Cinematic");
      setRatio(existing.ratio||"16:9");setLanguage(existing.language||"Indonesia");setVoice(existing.voice||"Narator Natural");
      setAssets((existing.sourceAssets||[]) as UploadedAsset[]);
    }
@@ -121,11 +121,11 @@ export default function CreatePage(){
     {assets.length>0&&<div style={{marginTop:12,display:"flex",flexWrap:"wrap",gap:8}}>{assets.map((a,i)=><div key={`${a.name}-${i}`} style={assetStyle}>{mode==="song"?<Music2 size={14}/>:<ImageIcon size={14}/>}<span>{a.name}</span>{a.url&&<CheckCircle2 size={13} color="#16a34a"/>}<button type="button" disabled={loading} onClick={()=>setAssets(v=>v.filter((_,x)=>x!==i))} style={removeStyle}><X size={13}/></button></div>)}</div>}
     {mode==="song"&&audioDuration>0&&<div style={hintStyle}>Durasi lagu terdeteksi: <strong>{Math.floor(audioDuration/60)}:{String(Math.round(audioDuration%60)).padStart(2,"0")}</strong>. Timeline visual akan mengikuti struktur lagu.</div>}
     {mode==="photo"&&previews.length>0&&<div style={{display:"flex",gap:8,marginTop:12,overflowX:"auto"}}>{previews.map(src=><img key={src} src={src} alt="Reference" style={{width:110,height:75,objectFit:"cover",borderRadius:10,border:"1px solid #e5e7eb"}}/>)}</div>}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginTop:20}}><Control label="DURASI"><select disabled={loading} value={duration} onChange={e=>setDuration(Number(e.target.value))} style={inputStyle}>{durations.map(d=><option key={d} value={d}>{d} menit</option>)}</select></Control><Control label="GAYA"><select disabled={loading} value={style} onChange={e=>setStyle(e.target.value)} style={inputStyle}><option>Cinematic</option><option>Documentary</option><option>Realistic</option><option>Islamic Elegant</option><option>Anime</option></select></Control><Control label="RASIO"><select disabled={loading} value={ratio} onChange={e=>setRatio(e.target.value)} style={inputStyle}><option>16:9</option><option>9:16</option><option>1:1</option></select></Control></div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginTop:20}}><Control label="DURASI"><select disabled={loading} value={duration} onChange={e=>setDuration(Number(e.target.value))} style={inputStyle}>{durations.map(d=><option key={d} value={d}>{d===0.25?"15 detik":d===0.5?"30 detik":"60 detik"}</option>)}</select></Control><Control label="GAYA"><select disabled={loading} value={style} onChange={e=>setStyle(e.target.value)} style={inputStyle}><option>Cinematic</option><option>Documentary</option><option>Realistic</option><option>Islamic Elegant</option><option>Anime</option></select></Control><Control label="RASIO"><select disabled={loading} value={ratio} onChange={e=>setRatio(e.target.value)} style={inputStyle}><option>16:9</option><option>9:16</option><option>1:1</option></select></Control></div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:12}}><Control label="BAHASA"><select disabled={loading} value={language} onChange={e=>setLanguage(e.target.value)} style={inputStyle}><option>Indonesia</option><option>English</option><option>Malay</option></select></Control><Control label="VOICE-OVER"><select disabled={loading} value={voice} onChange={e=>setVoice(e.target.value)} style={inputStyle}><option>Narator Natural</option><option>Narator Deep</option><option>Narator Warm</option><option>Storytelling</option></select></Control></div>
     {message&&<div style={{marginTop:18,padding:13,borderRadius:10,background:"#f8fafc",border:"1px solid #e5e7eb",fontSize:13}}>{message}</div>}
     {generating&&<section style={{marginTop:18,padding:18,border:"1px solid #dbeafe",borderRadius:14,background:"#f8fafc"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}><div><div style={eyebrow}>LIVE · PRODUKSI AWAL</div><h3 style={{margin:"5px 0 2px",fontSize:18}}>Salvian sedang bekerja</h3><p style={{margin:0,fontSize:13,color:"#64748b"}}>Setiap tahap nyata ditampilkan. Setelah storyboard selesai, layar Render melanjutkan monitor shot, continuity, audio, assembly, dan video final.</p></div><strong>{elapsedLabel}</strong></div><div style={{display:"grid",gap:8,marginTop:16}}>{directorStages.map((stage,index)=>{const current=directorStages.findIndex(s=>s.id===directorStage);const active=stage.id===directorStage;const done=current>index;return <div key={stage.id} style={{display:"grid",gridTemplateColumns:"30px 1fr auto",gap:10,alignItems:"center",padding:"11px 12px",border:"1px solid #e5e7eb",borderRadius:10,background:active?"#fff":"transparent"}}><span style={{width:30,height:30,borderRadius:99,display:"grid",placeItems:"center",background:done?"#dcfce7":active?"#111827":"#e5e7eb",color:done?"#166534":active?"#fff":"#64748b"}}>{active?<Loader2 size={15} className="spin"/>:done?<CheckCircle2 size={15}/>:<Film size={15}/>}</span><div><strong style={{fontSize:13}}>{stage.label}</strong><div style={{fontSize:12,color:"#64748b",marginTop:2}}>{stage.detail}</div></div><b style={{fontSize:11,color:done?"#15803d":active?"#111827":"#94a3b8"}}>{done?"SELESAI":active?"AKTIF":"MENUNGGU"}</b></div>})}</div></section>}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginTop:22,paddingTop:18,borderTop:"1px solid #f0f0f0"}}><span style={{fontSize:12,color:"#6b7280"}}>Durasi final {duration} menit · MP4 · master timeline otomatis</span><button type="button" onClick={generate} disabled={!canGenerate||loading} style={{...buttonStyle,background:"#111827",color:"white",opacity:canGenerate&&!loading?1:.5}}>{loading?<><Loader2 size={16} className="spin"/> Memproses produksi…</>:<>Buat Video Panjang <ArrowRight size={16}/></>}</button></div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginTop:22,paddingTop:18,borderTop:"1px solid #f0f0f0"}}><span style={{fontSize:12,color:"#6b7280"}}>Durasi final {Math.round(duration*60)} detik · MP4 · master timeline otomatis</span><button type="button" onClick={generate} disabled={!canGenerate||loading} style={{...buttonStyle,background:"#111827",color:"white",opacity:canGenerate&&!loading?1:.5}}>{loading?<><Loader2 size={16} className="spin"/> Memproses produksi…</>:<>Buat Video Panjang <ArrowRight size={16}/></>}</button></div>
    </div>
   </section>
  </main>;
