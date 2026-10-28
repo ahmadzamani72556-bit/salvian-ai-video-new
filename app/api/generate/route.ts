@@ -45,7 +45,8 @@ export async function POST(request:Request){
     const sourcePrompt=typeof body.sourcePrompt==="string"?body.sourcePrompt.trim():topic;
     const duration=Number(body.duration);
     if(!sourcePrompt&&!topic)return NextResponse.json({error:"Isi alur atau perintah terlebih dahulu."},{status:400});
-    if(!durations.includes(duration))return NextResponse.json({error:"Durasi tidak valid."},{status:400});
+    if(sourceType!=="song"&&!durations.includes(duration))return NextResponse.json({error:"Durasi tidak valid."},{status:400});
+    if(sourceType==="song"&&(!body.musicAsset?.url||!Number.isFinite(Number(body.musicAsset?.durationSeconds))||Number(body.musicAsset.durationSeconds)<10))return NextResponse.json({error:"Unggah lagu lengkap dengan durasi audio yang terbaca."},{status:400});
     const style=oneOf(body.style,styles,"Cinematic","Gaya visual"),ratio=oneOf(body.ratio,ratios,"16:9","Rasio"),language=oneOf(body.language,languages,"Indonesia","Bahasa"),voice=oneOf(body.voice,voices,"Narator Natural","Voice-over"),music=oneOf(body.music,musicOptions,"Ambient Cinematic","Musik");
     const requestData={topic:topic||sourcePrompt,duration,style,ratio,language,voice,music,autoStoryboard:body.autoStoryboard!==false,autoSubtitle:body.autoSubtitle!==false,smartPacing:body.smartPacing!==false,sourceType,sourcePrompt,sourceAssets:Array.isArray(body.sourceAssets)?body.sourceAssets:[],musicAsset:body.musicAsset&&typeof body.musicAsset==="object"?body.musicAsset:undefined};
     try{
