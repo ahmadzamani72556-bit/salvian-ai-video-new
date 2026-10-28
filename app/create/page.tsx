@@ -9,9 +9,9 @@ import { createProjectId, readActiveProject, readProject, saveActiveProject, typ
 
 const durations=[0.25,0.5,1];
 const modes:{id:SourceType;title:string;description:string;icon:any}[]=[
-  {id:"text",title:"Tulisan → Video Panjang",description:"Tulis ide atau cerita. Salvian membuat video pendek 15–60 detik dengan satu hasil final.",icon:Sparkles},
-  {id:"song",title:"Lagu → Clip Video Panjang",description:"Masukkan lagu yang sudah jadi. Salvian menyusun visual mengikuti struktur dan ritmenya.",icon:Music2},
-  {id:"photo",title:"Foto → Video Panjang",description:"Masukkan foto dan alur cerita. Salvian menjaga foto sebagai reference visual sepanjang film.",icon:ImageIcon},
+  {id:"text",title:"Tulisan → Video Pendek",description:"Tulis ide atau cerita. Salvian membuat video pendek 15–60 detik dengan satu hasil final.",icon:Sparkles},
+  {id:"song",title:"Lagu → Clip Video Pendek",description:"Masukkan lagu yang sudah jadi. Salvian menyusun visual mengikuti struktur dan ritmenya.",icon:Music2},
+  {id:"photo",title:"Foto → Video Pendek",description:"Masukkan foto dan alur cerita. Salvian menjaga foto sebagai reference visual sepanjang film.",icon:ImageIcon},
 ];
 
 type UploadedAsset=SourceAsset & {url?:string};
