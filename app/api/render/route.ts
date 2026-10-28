@@ -17,7 +17,7 @@ export async function POST(request:Request){
   if(!ALLOWED_RESOLUTIONS.has(settings.resolution)||!ALLOWED_FPS.has(settings.fps)||!ALLOWED_QUALITY.has(settings.quality)||!ALLOWED_FORMATS.has(settings.format))return NextResponse.json({error:"Pengaturan render tidak didukung."},{status:400});
   const readiness={concept:Boolean(project.script?.trim()),storyboard:Array.isArray(project.scenes)&&project.scenes.length>0,audio:Boolean(project.audio),visual:Boolean(project.visual),subtitle:Boolean(project.subtitle),timeline:Boolean(project.timeline)};
   if(!readiness.concept)return NextResponse.json({error:"Cerita wajib tersedia sebelum produksi dimulai.",readiness},{status:409});
-  if(![0.25,0.5,1].includes(Number(project.duration)))return NextResponse.json({error:"Durasi video hanya mendukung 15, 30, atau 60 detik."},{status:409});
+  if(!project.audio || !project.musicAsset?.url)return NextResponse.json({error:"Unggah lagu lengkap untuk membuat video musik Mureka."},{status:409});
   const key=requestKey(project,settings),cachedId=body.jobId?undefined:renderRequestCache.get(key);if(cachedId)return NextResponse.json({renderJob:{id:cachedId,projectId:project.id,projectTitle:project.title,status:"queued",stage:"planning",progress:12,settings,readiness,message:`Job ID: ${cachedId} · Produksi sudah diterima.`,providerTaskId:"",provider:"",currentShot:0,totalShots:0,completedShots:0,completedClips:[],productionTimeline:[],updatedAt:new Date().toISOString()},duplicate:true},{status:202});
   const plan=buildLongFormPlan(project);
   const first=plan.shots[0];
