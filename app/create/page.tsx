@@ -53,7 +53,7 @@ export default function CreatePage(){
      setProjectId(existing.id);setTitle(existing.title);setMode("song");
      setPrompt(existing.sourcePrompt||existing.topic||"");setDuration(Number(existing.musicAsset?.durationSeconds||existing.durationSeconds||existing.duration||0)/60||0.5);setStyle(existing.style||"Cinematic");
      setRatio(existing.ratio||"16:9");setLanguage(existing.language||"Indonesia");setVoice(existing.voice||"Narator Natural");
-     setAssets((existing.sourceAssets||[]) as UploadedAsset[]);
+     setAssets([...(existing.sourceAssets||[]) as UploadedAsset[],...(existing.musicAsset?[existing.musicAsset as UploadedAsset]:[])]);
    }
  },[]);
  useEffect(()=>{if(!generating)return;const timer=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(timer);},[generating]);
@@ -79,7 +79,7 @@ export default function CreatePage(){
        next.push({name:f.name,mimeType:f.type,size:f.size,durationSeconds:seconds||undefined,url:blob.url});
        if(f.type.startsWith("image/"))nextPreviews.push(blob.url);
      }
-     setAssets(v=>[...v.filter(old=>!next.some(n=>n.mimeType?.startsWith("audio/")&&old.mimeType?.startsWith("audio/"))&&!next.some(n=>n.mimeType?.startsWith("image/")&&old.name===n.name),...next]);setPreviews(v=>[...v,...nextPreviews]);const audio=next.find(a=>a.mimeType?.startsWith("audio/"));if(audio?.durationSeconds){setAudioDuration(audio.durationSeconds);setDuration(audio.durationSeconds/60);}
+     setAssets(v=>[...v.filter(old=>{const replacingAudio=next.some(n=>n.mimeType?.startsWith("audio/"))&&old.mimeType?.startsWith("audio/");const duplicateImage=next.some(n=>n.mimeType?.startsWith("image/")&&old.name===n.name);return !replacingAudio&&!duplicateImage;}),...next]);setPreviews(v=>[...v,...nextPreviews]);const audio=next.find(a=>a.mimeType?.startsWith("audio/"));if(audio?.durationSeconds){setAudioDuration(audio.durationSeconds);setDuration(audio.durationSeconds/60);}
      setMessage(`${next.length} sumber siap digunakan Salvian Director.`);
    }catch(e){setMessage(e instanceof Error?e.message:"Upload sumber gagal.");}finally{setLoading(false);}
  }
