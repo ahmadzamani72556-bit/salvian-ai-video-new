@@ -89,7 +89,7 @@ export async function GET(request:Request){
     if(run.status==="failed"){
      const attempts=Number(run.attempts)||0;
      if(isNonRetryableProviderError(String(run.error||"")))return {id,run,kind:"permanent"};
-     if(attempts<3){
+     if(process.env.SALVIAN_AUTO_RETRY_PROVIDER_FAILURES==="1"&&attempts<3){
       try{const task=await submitProvider(run.provider||shot.provider,shot,state.project,state.settings);return {id,run:{...run,status:"running",taskId:task.taskId,provider:run.provider||shot.provider,attempts:attempts+1,startedAt:now},kind:"active"};}
       catch(error){const nextAttempts=attempts+1;return {id,run:{...run,attempts:nextAttempts,error:error instanceof Error?error.message:"Retry pengiriman gagal.",status:"failed"},kind:nextAttempts>=3?"permanent":"failed"};}
      }
@@ -141,7 +141,7 @@ export async function GET(request:Request){
   const base=20+(Math.min(state.currentShot,totalShots-1)/totalShots)*66;state.progress=Math.min(86,Math.max(20,Math.round(base)));state.stage="generation";state.phase="generation";state.message=provider.message||`Salvian sedang membuat shot ${state.currentShot+1} dari ${totalShots}.`;
   if(provider.status==="failed"){
    const attempts=Number(state.shotRuns?.[current.id]?.attempts)||1;
-   if(attempts<3){
+   if(process.env.SALVIAN_AUTO_RETRY_PROVIDER_FAILURES==="1"&&attempts<3){
     try{const retry=await submitProvider(current.provider,current,state.project,state.settings);state.provider=current.provider;state.providerTaskId=retry.taskId;state.shotRuns=state.shotRuns||{};state.shotRuns[current.id]={...(state.shotRuns[current.id]||{}),startedAt:now,attempts:attempts+1};state.status="queued";state.stage="generation";state.phase="generation";state.message=`SHOT ${state.currentShot+1}/${totalShots} gagal pada percobaan sebelumnya; mencoba ulang otomatis (${attempts+1}/3).`;addLog(state,"generation","Mengulang shot yang gagal",`Percobaan ${attempts+1}/3 untuk shot ${state.currentShot+1}. Clip yang telah selesai tetap disimpan.`,state.progress);state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}catch(error){failGeneration(state,error instanceof Error?error.message:"Pengiriman ulang shot gagal.",now);await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}
    }
    failGeneration(state,`Shot ${state.currentShot+1} gagal setelah ${attempts} percobaan. Clip yang sudah selesai tetap disimpan; produksi dihentikan agar tidak membuat hasil palsu.`,now);await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
