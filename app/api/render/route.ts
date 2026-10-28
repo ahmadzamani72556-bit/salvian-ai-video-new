@@ -24,7 +24,7 @@ export async function POST(request:Request){
   const first=plan.shots[0];
   if(!first)return NextResponse.json({error:"Tidak ada shot yang dapat diproduksi."},{status:409});
   const jobId=String(body.jobId||`render-${crypto.randomUUID()}`);const now=new Date().toISOString();
-  const initialLogs=[{at:now,stage:"planning",label:"Produksi diterima",detail:`Salvian menyiapkan video ${Math.round(Number(project.duration)*60)} detik. Job ID: ${jobId}`,progress:2},...plan.logs.filter((item:any)=>["planning","music-analysis","shot-planning"].includes(item.stage)).map((item:any)=>({...item,at:now}))];
+  const initialLogs=[{at:now,stage:"planning",label:"Produksi diterima",detail:`Salvian menyiapkan video musik penuh berdurasi ${plan.durationSeconds} detik sesuai audio sumber. Job ID: ${jobId}`,progress:2},...plan.logs.filter((item:any)=>["planning","music-analysis","shot-planning"].includes(item.stage)).map((item:any)=>({...item,at:now}))];
   const state:RenderJobState={id:jobId,projectId:project.id,projectTitle:project.title,project,settings,plan,status:"queued",stage:"planning",phase:"planning",progress:12,currentShot:0,providerTaskId:"",provider:first.provider,completedUrls:[],shotRuns:{},stageRuns:{planning:{startedAt:now}},message:`Job ID: ${jobId} · Menyiapkan SHOT 1/${plan.shots.length} untuk ${first.provider}.`,logs:initialLogs,createdAt:now,updatedAt:now};
   renderRequestCache.set(key,jobId);
   await ensureRenderJobsTable();
