@@ -13,7 +13,7 @@ export class SalvianNativeRenderEngine implements RenderEngineAdapter {
   try{plan=buildLongFormPlan(request.project);}catch(e){return {status:"failed",stage:"planning-failed",progress:0,engine:"pending",output:null,message:e instanceof Error?e.message:"Gagal menyusun rencana long-form."};}
   const missing=missingProviderConfiguration(plan);
   if(missing.length===3){
-   return {status:"failed",stage:"engine-not-configured",progress:0,engine:"pending",output:null,message:"Produksi belum dapat dimulai karena belum ada mesin video AI yang benar-benar terhubung. Hubungkan minimal satu provider video (Seedance, Kling, atau Veo) pada environment Production agar job dapat berjalan dari shot pertama sampai video final.",logs:plan.logs,plan};
+   return {status:"failed",stage:"engine-not-configured",progress:0,engine:"pending",output:null,message:"Produksi belum dapat dimulai karena belum ada mesin pengganti yang terhubung. BytePlus Seedance dinonaktifkan; hubungkan Kling atau Veo pada environment Production agar job dapat berjalan dari shot pertama sampai video final.",logs:plan.logs,plan};
   }
   try{await ensureRenderJobsTable();}catch(e){return {status:"failed",stage:"storage-not-configured",progress:8,engine:"pending",output:null,message:e instanceof Error?e.message:"Penyimpanan job produksi belum dikonfigurasi.",logs:plan.logs,plan};}
   const first=plan.shots[0];
