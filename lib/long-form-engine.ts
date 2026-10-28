@@ -5,7 +5,7 @@ export type MusicGuide = { url?:string; name?:string; durationSeconds?:number; b
 export type LongFormShot = { id:string; scene:number; duration:number; prompt:string; provider:LongFormProvider; referenceShotId?:string; extendFrom?:string; beatStart?:number; beatEnd?:number };
 export type LongFormPlan = { durationSeconds:number; shots:LongFormShot[]; music?:MusicGuide; logs:ProductionLog[] };
 const now=()=>new Date().toISOString(); const log=(logs:ProductionLog[],stage:LongFormStage,label:string,progress:number,detail?:string,provider?:LongFormProvider)=>logs.push({at:now(),stage,label,detail,provider,progress});
-export function providerReady(provider:LongFormProvider):boolean { return provider==="mureka" && Boolean(process.env.MUREKA_API_KEY && process.env.MUREKA_VIDEO_GENERATE_URL && process.env.MUREKA_VIDEO_POLL_TEMPLATE); }
+export function providerReady(provider:LongFormProvider):boolean { if(provider!=="mureka") return false; if(process.env.VIDEO_ENGINE_INTERNAL_URL && process.env.VIDEO_ENGINE_INTERNAL_TOKEN) return true; return Boolean(process.env.MUREKA_API_KEY && process.env.MUREKA_VIDEO_GENERATE_URL && (process.env.MUREKA_VIDEO_POLL_TEMPLATE || process.env.MUREKA_VIDEO_QUERY_URL_TEMPLATE)); }
 export function buildLongFormPlan(project:any):LongFormPlan {
  const music:MusicGuide|undefined=project?.musicAsset||undefined;
  const durationSeconds=Math.round(Number(music?.durationSeconds||project?.durationSeconds||project?.audioDurationSeconds||0));
