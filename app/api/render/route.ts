@@ -3,7 +3,7 @@ import { buildLongFormPlan } from "../../../lib/long-form-engine";
 import { ensureRenderJobsTable, saveRenderJobState, type RenderJobState } from "../../../lib/render-job-store";
 
 type RenderSettings={projectId:string;projectTitle:string;resolution:string;fps:string;quality:string;format:string};
-type RenderProject={id?:string;title?:string;duration?:number;ratio?:string;updatedAt?:string;scenes?:unknown[];script?:string;audio?:unknown;visual?:unknown;subtitle?:unknown;timeline?:unknown};
+type RenderProject={id?:string;title?:string;duration?:number;durationSeconds?:number;sourceType?:string;sourcePrompt?:string;topic?:string;ratio?:string;updatedAt?:string;scenes?:unknown[];script?:string;musicAsset?:{url?:string;name?:string;durationSeconds?:number;syncMode?:string};audio?:unknown;visual?:unknown;subtitle?:unknown;timeline?:unknown};
 const ALLOWED_RESOLUTIONS=new Set(["720p","1080p","4K"]),ALLOWED_FPS=new Set(["24 FPS","30 FPS","60 FPS"]),ALLOWED_QUALITY=new Set(["Standard","High","Maximum"]),ALLOWED_FORMATS=new Set(["MP4","WebM"]);
 const renderRequestCache=new Map<string,string>();
 function requestKey(project:RenderProject,settings:RenderSettings){return JSON.stringify({projectId:project.id,projectUpdatedAt:project.updatedAt||"",duration:project.duration||0,settings});}
@@ -17,7 +17,8 @@ export async function POST(request:Request){
   if(!ALLOWED_RESOLUTIONS.has(settings.resolution)||!ALLOWED_FPS.has(settings.fps)||!ALLOWED_QUALITY.has(settings.quality)||!ALLOWED_FORMATS.has(settings.format))return NextResponse.json({error:"Pengaturan render tidak didukung."},{status:400});
   const readiness={concept:Boolean(project.script?.trim()),storyboard:Array.isArray(project.scenes)&&project.scenes.length>0,audio:Boolean(project.audio),visual:Boolean(project.visual),subtitle:Boolean(project.subtitle),timeline:Boolean(project.timeline)};
   if(!readiness.concept)return NextResponse.json({error:"Cerita wajib tersedia sebelum produksi dimulai.",readiness},{status:409});
-  if(!project.audio || !project.musicAsset?.url)return NextResponse.json({error:"Unggah lagu lengkap untuk membuat video musik Mureka."},{status:409});
+  if(project.sourceType==="song"&&(!project.audio||!project.musicAsset?.url||Number(project.musicAsset.durationSeconds)<10))return NextResponse.json({error:"Unggah lagu penuh dan pastikan durasi audio minimal 10 detik terbaca."},{status:409});
+  if(project.sourceType!=="song"&&(!project.audio||!project.musicAsset?.url))return NextResponse.json({error:"Audio sumber wajib tersedia sebelum render."},{status:409});
   const key=requestKey(project,settings),cachedId=body.jobId?undefined:renderRequestCache.get(key);if(cachedId)return NextResponse.json({renderJob:{id:cachedId,projectId:project.id,projectTitle:project.title,status:"queued",stage:"planning",progress:12,settings,readiness,message:`Job ID: ${cachedId} · Produksi sudah diterima.`,providerTaskId:"",provider:"",currentShot:0,totalShots:0,completedShots:0,completedClips:[],productionTimeline:[],updatedAt:new Date().toISOString()},duplicate:true},{status:202});
   const plan=buildLongFormPlan(project);
   const first=plan.shots[0];
