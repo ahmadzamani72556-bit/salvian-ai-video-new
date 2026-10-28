@@ -17,13 +17,13 @@ export async function POST(request:Request){
   if(!ALLOWED_RESOLUTIONS.has(settings.resolution)||!ALLOWED_FPS.has(settings.fps)||!ALLOWED_QUALITY.has(settings.quality)||!ALLOWED_FORMATS.has(settings.format))return NextResponse.json({error:"Pengaturan render tidak didukung."},{status:400});
   const readiness={concept:Boolean(project.script?.trim()),storyboard:Array.isArray(project.scenes)&&project.scenes.length>0,audio:Boolean(project.audio),visual:Boolean(project.visual),subtitle:Boolean(project.subtitle),timeline:Boolean(project.timeline)};
   if(!readiness.concept)return NextResponse.json({error:"Cerita wajib tersedia sebelum produksi dimulai.",readiness},{status:409});
-  if(![5,6,7,8].includes(Number(project.duration)))return NextResponse.json({error:"Durasi long-form hanya mendukung 5, 6, 7, atau 8 menit."},{status:409});
+  if(![0.25,0.5,1].includes(Number(project.duration)))return NextResponse.json({error:"Durasi video hanya mendukung 15, 30, atau 60 detik."},{status:409});
   const key=requestKey(project,settings),cachedId=body.jobId?undefined:renderRequestCache.get(key);if(cachedId)return NextResponse.json({renderJob:{id:cachedId,projectId:project.id,projectTitle:project.title,status:"queued",stage:"planning",progress:12,settings,readiness,message:`Job ID: ${cachedId} · Produksi sudah diterima.`,providerTaskId:"",provider:"",currentShot:0,totalShots:0,completedShots:0,completedClips:[],productionTimeline:[],updatedAt:new Date().toISOString()},duplicate:true},{status:202});
   const plan=buildLongFormPlan(project);
   const first=plan.shots[0];
   if(!first)return NextResponse.json({error:"Tidak ada shot yang dapat diproduksi."},{status:409});
   const jobId=String(body.jobId||`render-${crypto.randomUUID()}`);const now=new Date().toISOString();
-  const initialLogs=[{at:now,stage:"planning",label:"Produksi diterima",detail:`Salvian menyiapkan film ${project.duration} menit. Job ID: ${jobId}`,progress:2},...plan.logs.filter((item:any)=>["planning","music-analysis","shot-planning"].includes(item.stage)).map((item:any)=>({...item,at:now}))];
+  const initialLogs=[{at:now,stage:"planning",label:"Produksi diterima",detail:`Salvian menyiapkan video ${Math.round(Number(project.duration)*60)} detik. Job ID: ${jobId}`,progress:2},...plan.logs.filter((item:any)=>["planning","music-analysis","shot-planning"].includes(item.stage)).map((item:any)=>({...item,at:now}))];
   const state:RenderJobState={id:jobId,projectId:project.id,projectTitle:project.title,project,settings,plan,status:"queued",stage:"planning",phase:"planning",progress:12,currentShot:0,providerTaskId:"",provider:first.provider,completedUrls:[],shotRuns:{},stageRuns:{planning:{startedAt:now}},message:`Job ID: ${jobId} · Menyiapkan SHOT 1/${plan.shots.length} untuk ${first.provider}.`,logs:initialLogs,createdAt:now,updatedAt:now};
   renderRequestCache.set(key,jobId);
   await ensureRenderJobsTable();
