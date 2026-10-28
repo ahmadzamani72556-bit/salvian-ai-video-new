@@ -28,8 +28,21 @@ export type RenderJobState = {
 };
 
 function db() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("Render job database belum dikonfigurasi.");
+  // Vercel/Neon integrations may expose different canonical connection variable names.
+  // Prefer DATABASE_URL, then supported PostgreSQL/Neon aliases without logging secrets.
+  const candidates = [
+    process.env.DATABASE_URL,
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_PRISMA_URL,
+    process.env.NEON_DATABASE_URL,
+    process.env.DATABASE_URL_UNPOOLED,
+  ];
+  const url = candidates.find((value) => typeof value === "string" && value.trim().length > 0);
+  if (!url) {
+    throw new Error(
+      "Render job database belum dikonfigurasi: DATABASE_URL (atau POSTGRES_URL/NEON_DATABASE_URL) tidak tersedia pada deployment ini."
+    );
+  }
   return neon(url);
 }
 
