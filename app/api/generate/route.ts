@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { productionEngine } from "../../../lib/production-engine";
 
-const durations=[5,6,7,8],styles=["Cinematic","Documentary","Realistic","Anime","Islamic Elegant"],ratios=["16:9","9:16","1:1"],languages=["Indonesia","English","Malay"],voices=["Narator Natural","Narator Deep","Narator Warm","Storytelling"],musicOptions=["Ambient Cinematic","Emotional Piano","Documentary","Minimal","Tanpa Musik"];
+const durations=[0.25,0.5,1],styles=["Cinematic","Documentary","Realistic","Anime","Islamic Elegant"],ratios=["16:9","9:16","1:1"],languages=["Indonesia","English","Malay"],voices=["Narator Natural","Narator Deep","Narator Warm","Storytelling"],musicOptions=["Ambient Cinematic","Emotional Piano","Documentary","Minimal","Tanpa Musik"];
 function oneOf(value:unknown,allowed:string[],fallback:string,label:string){if(value===undefined||value===null||value==="")return fallback;if(typeof value!=="string"||!allowed.includes(value))throw new Error(`${label} tidak valid.`);return value;}
 function fallbackProject(request:{topic:string;duration:number;style:string;ratio:string;language:string;voice:string;sourceType:string;sourcePrompt:string;sourceAssets:any[];musicAsset?:any}){
-  const count=request.duration===5?12:request.duration===6?14:request.duration===7?16:18;
-  const target=request.duration*60;
+  const count=request.duration===0.25?3:request.duration===0.5?4:6;
+  const target=Math.round(request.duration*60);
   const base=Math.floor(target/count),extra=target-base*count;
   const arc=[
     ["Pembukaan","Establishing shot memperlihatkan lingkungan utama dan suasana awal cerita."],
