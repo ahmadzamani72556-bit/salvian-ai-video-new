@@ -56,10 +56,9 @@ function sourceDescription(request:ProductionRequest){
 }
 
 function sceneCount(duration:number){
-  if(duration===5)return 12;
-  if(duration===6)return 14;
-  if(duration===7)return 16;
-  return 18;
+  if(duration===0.25)return 3;
+  if(duration===0.5)return 4;
+  return 6;
 }
 
 function normalizedWords(value:unknown){
@@ -112,7 +111,7 @@ Aturan keras:
 
 function buildPrompt(request:ProductionRequest){
   const count=sceneCount(request.duration);
-  return `Anda adalah SALVIAN DIRECTOR, sutradara AI untuk produksi video long-form. ${sourceDescription(request)}
+  return `Anda adalah SALVIAN DIRECTOR, sutradara AI untuk produksi video pendek. ${sourceDescription(request)}
 TOPIK/ALUR PENGGUNA: ${request.sourcePrompt||request.topic}
 TARGET DURASI: ${Math.round(request.duration*60)} detik
 GAYA: ${request.style}; RASIO: ${request.ratio}; BAHASA: ${request.language}; VOICE: ${request.voice}; MUSIK: ${request.music}.
