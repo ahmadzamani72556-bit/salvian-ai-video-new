@@ -81,7 +81,7 @@ export default function CreatePage(){
      }
      setAssets(v=>[...v.filter(old=>{const replacingAudio=next.some(n=>n.mimeType?.startsWith("audio/"))&&old.mimeType?.startsWith("audio/");const duplicateImage=next.some(n=>n.mimeType?.startsWith("image/")&&old.name===n.name);return !replacingAudio&&!duplicateImage;}),...next]);setPreviews(v=>[...v,...nextPreviews]);const audio=next.find(a=>a.mimeType?.startsWith("audio/"));if(audio?.durationSeconds){setAudioDuration(audio.durationSeconds);setDuration(audio.durationSeconds/60);}
      setMessage(`${next.length} sumber siap digunakan Salvian Director.`);
-   }catch(e){setMessage(e instanceof Error&&e.message.includes("Failed to retrieve the client token")?"Upload belum dapat dimulai karena token Vercel Blob tidak tersedia pada deployment ini. Periksa BLOB_READ_WRITE_TOKEN di pengaturan Environment Variables Vercel, lalu redeploy.":e instanceof Error?e.message:"Upload sumber gagal.");}finally{setLoading(false);}
+   }catch(e){setMessage(e instanceof Error&&e.message.includes("Failed to retrieve the client token")?"Server gagal menyiapkan token upload. Coba lagi setelah deployment terbaru aktif; detail penyebab dicatat aman di log server.":e instanceof Error?e.message:"Upload sumber gagal.");}finally{setLoading(false);}
  }
 
  async function generate(){
