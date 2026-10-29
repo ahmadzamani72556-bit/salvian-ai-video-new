@@ -76,7 +76,7 @@ export async function GET(request:Request){
     (state as any).parallelMode=true;state.shotRuns=state.shotRuns||{};state.status="running";state.stage="generation";state.phase="generation";state.progress=20;
     state.message=`Mengirim ${shots.length} visual secara bersamaan. Hasil akan dirangkai mengikuti urutan cerita.`;
     addLog(state,"generation","Memulai render paralel",`${shots.length} shot dikirim sebagai tugas independen; penggabungan menunggu semua visual selesai.`,20);
-    let initialSlots=1;
+    let initialSlots=3;
     const submissions=await Promise.all(shots.map(async(shot:any,index:number)=>{
      const id=String(shot.id||`shot-${index+1}`);
      if(initialSlots<=0)return {id,shot,run:{startedAt:now,attempts:0,provider:shot.provider,status:"queued"}};
@@ -92,12 +92,12 @@ export async function GET(request:Request){
     for(const item of submissions)state.shotRuns[item.id]=item.run;
     const sent=submissions.filter(x=>x.run.status==="running").length;
     state.provider="parallel";state.providerTaskId="parallel";state.currentShot=0;state.progress=20;
-    state.message=state.project?.murekaVideoFallback==="lyrics-video"?`${sent}/${shots.length} segmen telah dikirim; memakai fallback Lyrics Video agar lagu tetap selesai.`:`${sent}/${shots.length} visual telah dikirim ke mesin; maksimal satu segmen berjalan selama pemeriksaan awal mesin.`;
+    state.message=state.project?.murekaVideoFallback==="lyrics-video"?`${sent}/${shots.length} segmen telah dikirim; memakai fallback Lyrics Video agar lagu tetap selesai.`:`${sent}/${shots.length} visual telah dikirim ke mesin; maksimal tiga segmen berjalan bersamaan.`;
     state.updatedAt=now;await saveRenderJobState(state);
     return NextResponse.json({result:publicResult(state)});
    }
 
-   const runs=state.shotRuns||{};let completed=0;let active=0;let permanentFailures:string[]=[];let slotsAvailable=Math.max(0,1-shots.filter((shot:any,index:number)=>{const id=String(shot.id||`shot-${index+1}`);return runs[id]?.status==="running"&&Boolean(runs[id]?.taskId);}).length);
+   const runs=state.shotRuns||{};let completed=0;let active=0;let permanentFailures:string[]=[];let slotsAvailable=Math.max(0,3-shots.filter((shot:any,index:number)=>{const id=String(shot.id||`shot-${index+1}`);return runs[id]?.status==="running"&&Boolean(runs[id]?.taskId);}).length);
    const updates=await Promise.all(shots.map(async(shot:any,index:number)=>{
     const id=String(shot.id||`shot-${index+1}`);const run=runs[id]||{};
     if(run.status==="completed"&&run.url)return {id,run,kind:"completed"};
