@@ -148,6 +148,11 @@ export async function submitProviderLocal(
   const textContent = [{ type: "text", text: visualPrompt }];
   const imageUrlContent = imageContent.map((item:any) => ({ type: "image_url", image_url: { url: String(item.url || "") } }));
   const variants = [
+    { music, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
+    { music, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music, video: { prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music, video: { model, content, duration: durationSeconds, ratio, resolution } },
+    { music, video: { content: [...textContent, ...imageUrlContent], duration: durationSeconds, ratio, resolution } },
     { music, video: { model, content: textContent, ratio, resolution } },
     { music, video: { model, content, ratio, resolution } },
     { music, video: { content: [...textContent, ...imageUrlContent], ratio, resolution } },
