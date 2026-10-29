@@ -24,7 +24,7 @@ async function readJson(url: string, init: RequestInit) {
   if (!response.ok) {
     const message = data?.error?.message || (typeof data?.error === "string" ? data.error : "") || data?.message || ("Mureka API gagal (HTTP " + response.status + ").");
     const trace = data?.trace_id || data?.traceId;
-    throw new Error((String(message) + (trace ? " · trace_id: " + String(trace) : "")).slice(0, 400));
+    throw new Error((String(message) + " (HTTP " + response.status + ")" + (trace ? " · trace_id: " + String(trace) : "")).slice(0, 400));
   }
   return data;
 }
@@ -136,27 +136,44 @@ export async function submitProviderLocal(
     }
   }
 
-  const payload = {
-    music: {
-      url: audioUrl,
-      audio_start: audioStartSeconds * 1000,
-      audio_end: audioEndSeconds * 1000,
-    },
-    video: {
-      model,
-      content,
-      ratio: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"].includes(String(project?.ratio || "16:9"))
-        ? String(project?.ratio || "16:9")
-        : "16:9",
-      resolution,
-    },
+  const music = {
+    url: audioUrl,
+    audio_start: audioStartSeconds * 1000,
+    audio_end: audioEndSeconds * 1000,
   };
-
-  const data = await readJson(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
-    body: JSON.stringify(payload),
-  });
+  const ratio = ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"].includes(String(project?.ratio || "16:9"))
+    ? String(project?.ratio || "16:9")
+    : "16:9";
+  const imageContent = content.filter((item) => item.type === "image");
+  const textContent = [{ type: "text", text: visualPrompt }];
+  const imageUrlContent = imageContent.map((item:any) => ({ type: "image_url", image_url: { url: String(item.url || "") } }));
+  const variants = [
+    { music, video: { model, content: textContent, ratio, resolution } },
+    { music, video: { model, content, ratio, resolution } },
+    { music, video: { content: [...textContent, ...imageUrlContent], ratio, resolution } },
+    { music, video: { prompt: visualPrompt, ratio, resolution } },
+    { music, video: { model, prompt: visualPrompt, ratio, resolution } },
+    { music, video: { prompt: visualPrompt } },
+  ];
+  let data: any;
+  let lastError: unknown;
+  for (let index = 0; index < variants.length; index += 1) {
+    try {
+      data = await readJson(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
+        body: JSON.stringify(variants[index]),
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      // Try alternate documented field shapes only for an explicit parameter-validation response.
+      if (/HTTP 400/.test(message) && index < variants.length - 1) continue;
+      throw error;
+    }
+  }
+  if (!data) throw lastError instanceof Error ? lastError : new Error("Mureka tidak mengembalikan respons tugas.");
   const id = idOf(data);
   if (!id) throw new Error("Respons Mureka tidak berisi task ID. Periksa respons API pada log server.");
   return { provider: "mureka", taskId: id };
