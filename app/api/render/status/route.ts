@@ -25,7 +25,7 @@ function publicResult(state:any){
 }
 function addLog(state:any,stage:string,label:string,detail:string,progress:number){const last=state.logs?.[state.logs.length-1];if(last?.stage===stage&&last?.label===label&&last?.detail===detail)return;state.logs=[...(state.logs||[]),{at:new Date().toISOString(),stage,label,detail,progress}];}
 function failGeneration(state:any,message:string,now:string){finishStage(state,"generation",now);state.status="failed";state.stage="generation-failed";state.phase="generation";state.message=message;state.updatedAt=now;addLog(state,"generation","Produksi berhenti",message,Math.max(20,Number(state.progress)||20));}
-function isNonRetryableProviderError(message:string){return /\b(?:401|402|403)\b|overdue balance|insufficient balance|billing|payment required|invalid api key|unauthorized|permission denied|does not exist or you do not have access/i.test(message);}
+function isNonRetryableProviderError(message:string){return /\b(?:400|401|402|403)\b|overdue balance|insufficient balance|billing|payment required|invalid api key|unauthorized|permission denied|does not exist or you do not have access|invalid request|unsupported duration|duration.*(?:limit|maximum)/i.test(message);}
 function providerFailureSummary(runs:any,ids:string[]){const reason=ids.map(id=>String(runs?.[id]?.error||"")).find(isNonRetryableProviderError)||ids.map(id=>String(runs?.[id]?.error||"")).find(Boolean)||"";if(/overdue balance/i.test(reason))return "Mesin Seedance menolak tugas karena saldo akun penyedia tertunggak (HTTP 403). Tidak ada shot yang bisa diproduksi sampai tagihan akun diselesaikan. Setelah pembayaran, mulai job baru; shot tidak akan terus diulang sia-sia.";if(/insufficient balance|billing|payment required/i.test(reason))return "Mesin video menolak tugas karena masalah saldo atau penagihan akun penyedia. Selesaikan penagihan terlebih dahulu, lalu mulai job baru.";if(/\b(?:401|403)\b|invalid api key|unauthorized|permission denied|does not exist or you do not have access/i.test(reason))return "Mesin video menolak akses (401/403). Periksa izin model, API key, dan akses endpoint di penyedia sebelum mengulang produksi.";return "Shot "+ids.join(", ")+" gagal setelah percobaan otomatis. "+(reason?"Penyebab terakhir: "+reason:"")+" Visual yang sudah selesai tetap tersimpan.";}
 
 async function runNativeAssembly(jobId:string){
@@ -40,6 +40,17 @@ export async function GET(request:Request){
  const jobId=new URL(request.url).searchParams.get("taskId")?.trim()||"";if(!jobId)return NextResponse.json({error:"taskId wajib diisi."},{status:400});
  try{
   const state=await getRenderJobState(jobId);if(!state)return NextResponse.json({error:"Job produksi tidak ditemukan."},{status:404});
+  // Recover jobs that failed only because an older deployment used an overly strict Mureka readiness gate.
+  // Keep the existing job ID and source assets; do not require a re-upload.
+  if(state.project?.sourceType==="song" && state.status==="failed" && /Mesin mureka belum siap|engine-not-ready/i.test(String(state.message||""))){
+   const resumedAt=new Date().toISOString();
+   state.status="queued";state.stage="planning";state.phase="planning";state.progress=12;state.currentShot=0;
+   state.providerTaskId="";state.provider="mureka";state.completedUrls=[];state.shotRuns={};(state as any).parallelMode=false;
+   state.assemblyStatus=undefined;state.outputUrl=undefined;
+   state.message="Melanjutkan job video musik yang sebelumnya tertahan pada pemeriksaan kesiapan Mureka.";
+   state.logs=[...(state.logs||[]),{at:resumedAt,stage:"planning",label:"Melanjutkan job yang tertahan",detail:"Pemeriksaan kesiapan Mureka telah diperbaiki. Job lama dilanjutkan tanpa meminta unggah ulang.",progress:12}];
+   state.updatedAt=resumedAt;await saveRenderJobState(state);
+  }
   // Song projects must never enter the legacy cinematic multi-shot pipeline.
   if(state.project?.sourceType==="song" && state.plan?.shots?.length!==1){
    const musicPlan=buildLongFormPlan(state.project);
@@ -87,12 +98,17 @@ export async function GET(request:Request){
       if(result.status==="succeeded"&&result.outputUrl)return {id,run:{...run,status:"completed",url:result.outputUrl,completedAt:now},kind:"completed"};
       if(result.status==="failed")return {id,run:{...run,status:"failed",error:result.message||"Engine menandai shot gagal."},kind:"failed"};
       return {id,run:{...run,status:"running"},kind:"active"};
-     }catch(error){return {id,run:{...run,status:"failed",error:error instanceof Error?error.message:"Status engine gagal dibaca."},kind:"failed"};}
+     }catch(error){
+       const pollErrors=(Number(run.pollErrors)||0)+1;
+       const pollError=error instanceof Error?error.message:"Status engine gagal dibaca.";
+       if(pollErrors<5)return {id,run:{...run,status:"running",pollErrors,lastPollError:pollError},kind:"active"};
+       return {id,run:{...run,status:"failed",pollErrors,error:pollError},kind:"failed"};
+      }
     }
     if(run.status==="failed"){
      const attempts=Number(run.attempts)||0;
      if(isNonRetryableProviderError(String(run.error||"")))return {id,run,kind:"permanent"};
-     if(process.env.SALVIAN_AUTO_RETRY_PROVIDER_FAILURES==="1"&&attempts<3){
+     if(attempts<3&&!isNonRetryableProviderError(String(run.error||""))){
       try{const task=await submitProvider(run.provider||shot.provider,shot,state.project,state.settings);return {id,run:{...run,status:"running",taskId:task.taskId,provider:run.provider||shot.provider,attempts:attempts+1,startedAt:now},kind:"active"};}
       catch(error){const nextAttempts=attempts+1;return {id,run:{...run,attempts:nextAttempts,error:error instanceof Error?error.message:"Retry pengiriman gagal.",status:"failed"},kind:nextAttempts>=3?"permanent":"failed"};}
      }
@@ -144,7 +160,7 @@ export async function GET(request:Request){
   const base=20+(Math.min(state.currentShot,totalShots-1)/totalShots)*66;state.progress=Math.min(86,Math.max(20,Math.round(base)));state.stage="generation";state.phase="generation";state.message=provider.message||`Salvian sedang membuat shot ${state.currentShot+1} dari ${totalShots}.`;
   if(provider.status==="failed"){
    const attempts=Number(state.shotRuns?.[current.id]?.attempts)||1;
-   if(process.env.SALVIAN_AUTO_RETRY_PROVIDER_FAILURES==="1"&&attempts<3){
+   if(attempts<3&&!isNonRetryableProviderError(String(provider.message||""))){
     try{const retry=await submitProvider(current.provider,current,state.project,state.settings);state.provider=current.provider;state.providerTaskId=retry.taskId;state.shotRuns=state.shotRuns||{};state.shotRuns[current.id]={...(state.shotRuns[current.id]||{}),startedAt:now,attempts:attempts+1};state.status="queued";state.stage="generation";state.phase="generation";state.message=`SHOT ${state.currentShot+1}/${totalShots} gagal pada percobaan sebelumnya; mencoba ulang otomatis (${attempts+1}/3).`;addLog(state,"generation","Mengulang shot yang gagal",`Percobaan ${attempts+1}/3 untuk shot ${state.currentShot+1}. Clip yang telah selesai tetap disimpan.`,state.progress);state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}catch(error){failGeneration(state,error instanceof Error?error.message:"Pengiriman ulang shot gagal.",now);await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});}
    }
    failGeneration(state,`Shot ${state.currentShot+1} gagal setelah ${attempts} percobaan. Clip yang sudah selesai tetap disimpan; produksi dihentikan agar tidak membuat hasil palsu.`,now);await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
