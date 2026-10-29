@@ -136,6 +136,23 @@ export async function submitProviderLocal(
     }
   }
 
+  let uploadedAudioId = String(project?.murekaUploadAudioId || "").trim();
+  if (!uploadedAudioId) {
+    try {
+      const form = new FormData();
+      form.set("url", audioUrl);
+      form.set("purpose", "audio");
+      const uploadData = await readJson(API_BASE + "/v1/files/upload", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + apiKey },
+        body: form,
+      });
+      uploadedAudioId = idOf(uploadData) || String(uploadData?.file_id || uploadData?.upload_audio_id || uploadData?.data?.file_id || "");
+      if (uploadedAudioId) project.murekaUploadAudioId = uploadedAudioId;
+    } catch {
+      // Direct URL variants below remain available if Mureka's file upload service is unavailable.
+    }
+  }
   const music = {
     url: audioUrl,
     audio_start: audioStartSeconds * 1000,
@@ -165,6 +182,13 @@ export async function submitProviderLocal(
     { music: { audio_url: audioUrl }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
     { music: { song_url: audioUrl, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
     { music: { song_url: audioUrl }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    ...(uploadedAudioId ? [
+      { music: { upload_audio_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
+      { music: { upload_audio_id: uploadedAudioId }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+      { music: { file_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+      { music: { audio_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+      { music: { song_id: uploadedAudioId }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    ] : []),
   ];
   let data: any;
   let lastError: unknown;
