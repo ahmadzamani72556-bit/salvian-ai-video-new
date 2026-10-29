@@ -56,8 +56,9 @@ export async function GET(request:Request){
   if(state.project?.sourceType==="song" && (state.plan?.version!==expectedMusicPlan?.version || state.plan?.shots?.length!==expectedMusicPlan?.shots.length || (state.status==="failed" && /Mesin mureka belum siap|engine-not-ready/i.test(String(state.message||""))))){
    const musicPlan=expectedMusicPlan!;
    state.plan=musicPlan;state.parallelMode=false;state.shotRuns={};state.completedUrls=[];state.currentShot=0;state.providerTaskId="";state.provider="mureka";state.status="queued";state.stage="planning";state.phase="planning";state.progress=12;state.assemblyStatus=undefined;state.outputUrl=undefined;
-   state.message="Alur video musik aktif: seluruh lagu dibagi menjadi segmen pendek dan dirakit otomatis menjadi satu file final.";
-   state.logs=[...(state.logs||[]),{at:new Date().toISOString(),stage:"planning",label:"Mengaktifkan segmen video musik",detail:`${musicPlan.shots.length} segmen berurutan untuk durasi lagu penuh; audio asli akan dipasang sekali pada master akhir.`,progress:12}];
+   const fallbackMode=state.project?.murekaVideoFallback==="lyrics-video";
+   state.message=fallbackMode?"Mureka cinematic ditolak; melanjutkan lewat Lyrics Video dengan segmen panjang agar satu video penuh tetap selesai.":"Alur video musik aktif: seluruh lagu dibagi menjadi segmen pendek dan dirakit otomatis menjadi satu file final.";
+   state.logs=[...(state.logs||[]),{at:new Date().toISOString(),stage:"planning",label:fallbackMode?"Mengaktifkan fallback Lyrics Video":"Mengaktifkan segmen video musik",detail:fallbackMode?`${musicPlan.shots.length} segmen Lyrics Video berurutan; audio asli akan dipasang sekali pada master akhir.`:`${musicPlan.shots.length} segmen maksimal 15 detik; audio asli akan dipasang sekali pada master akhir.`,progress:12}];
    state.updatedAt=new Date().toISOString();await saveRenderJobState(state);
   }
   const totalShots=Math.max(1,state.plan?.shots?.length||1);const now=new Date().toISOString();ensureStageRuns(state);
