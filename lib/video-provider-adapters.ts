@@ -57,7 +57,7 @@ function findVideoUrl(value: any): string | undefined {
 
 function modelAndResolution(settings: any) {
   // Let Mureka choose its compatible video model unless an explicit supported model is configured.
-  const model = process.env.MUREKA_VIDEO_MODEL?.trim() || "auto";
+  const model = process.env.MUREKA_VIDEO_MODEL?.trim() || "doubao-seedance-2-5-260628";
   const requestedResolution = String(settings?.resolution || "720p").toLowerCase();
   const resolution = ["480p", "720p", "1080p"].includes(requestedResolution) ? requestedResolution : "720p";
   return { model, resolution };
@@ -141,10 +141,6 @@ export async function submitProviderLocal(
       url: audioUrl,
       audio_start: audioStartSeconds * 1000,
       audio_end: audioEndSeconds * 1000,
-      show_lyrics_subtitle: Boolean(project?.showLyricsSubtitle ?? true),
-      lip_sync: Boolean(project?.lipSync ?? true),
-      background: String(project?.background || "Cinematic, natural lighting, realistic performance, coherent scenes that follow the music."),
-      prompt: visualPrompt,
     },
     video: {
       model,
