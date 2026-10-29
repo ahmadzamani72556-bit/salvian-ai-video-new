@@ -56,8 +56,10 @@ function findVideoUrl(value: any): string | undefined {
 }
 
 function modelAndResolution(settings: any) {
-  // Let Mureka choose its compatible video model unless an explicit supported model is configured.
-  const model = process.env.MUREKA_VIDEO_MODEL?.trim() || "doubao-seedance-2-5-260628";
+  // Use only models documented by Mureka's Seedance video API; an unknown model causes HTTP 400.
+  const supportedModels = ["doubao-seedance-2-0-260128", "doubao-seedance-2-0-fast-260128", "doubao-seedance-1-5-pro-251215"];
+  const requestedModel = process.env.MUREKA_VIDEO_MODEL?.trim() || "";
+  const model = supportedModels.includes(requestedModel) ? requestedModel : "doubao-seedance-2-0-260128";
   const requestedResolution = String(settings?.resolution || "720p").toLowerCase();
   const resolution = ["480p", "720p", "1080p"].includes(requestedResolution) ? requestedResolution : "720p";
   return { model, resolution };
