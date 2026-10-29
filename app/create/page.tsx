@@ -75,7 +75,7 @@ export default function CreatePage(){
        if(f.type.startsWith("audio/")){
          try{const localUrl=URL.createObjectURL(f);const audio=document.createElement("audio");audio.src=localUrl;await new Promise<void>(resolve=>{audio.onloadedmetadata=()=>{seconds=Number.isFinite(audio.duration)?audio.duration:0;resolve();};audio.onerror=()=>resolve();});URL.revokeObjectURL(localUrl);}catch{}
        }
-       const blob=await upload(`salvian/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"-")}`,f,{access:"public",handleUploadUrl:"https://salvian-ai-video-new.vercel.app/api/assets/upload"});
+       const blob=await upload(`salvian/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"-")}`,f,{access:"public",handleUploadUrl:`${window.location.origin}/api/assets/upload`});
        next.push({name:f.name,mimeType:f.type,size:f.size,durationSeconds:seconds||undefined,url:blob.url});
        if(f.type.startsWith("image/"))nextPreviews.push(blob.url);
      }
