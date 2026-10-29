@@ -193,7 +193,12 @@ export async function submitProviderLocal(
     { music: audioUrl, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
     { music: { url: audioUrl }, video: { content: visualPrompt, duration: durationSeconds } },
     { music: { url: audioUrl }, video: { content: textContent } },
+    { music: { type: "url", url: audioUrl, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
+    { music: { type: "url", url: audioUrl }, video: { model, prompt: visualPrompt } },
     ...(uploadedAudioId ? [
+      { music: { type: "audio", upload_audio_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
+      { music: { type: "upload_audio", upload_audio_id: uploadedAudioId }, video: { model, prompt: visualPrompt, duration: durationSeconds } },
+      { music: { type: "song", song_id: uploadedAudioId }, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
       { music: { upload_audio_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
       { music: { upload_audio_id: uploadedAudioId }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
       { music: { upload_audio_id: uploadedAudioId }, video: { prompt: visualPrompt } },
