@@ -33,7 +33,8 @@ export async function OPTIONS(request: Request) {
 export async function POST(request: Request) {
   const headers = corsHeaders(request);
   const origin = request.headers.get("origin") || "";
-  if (origin && !allowedOrigins.has(origin)) {
+  const requestOrigin = new URL(request.url).origin;
+  if (origin && origin !== requestOrigin && !allowedOrigins.has(origin)) {
     return NextResponse.json({ error: "Origin upload tidak diizinkan." }, { status: 403, headers });
   }
   try {
