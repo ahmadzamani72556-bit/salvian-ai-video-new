@@ -31,7 +31,11 @@ async function readJson(url: string, init: RequestInit) {
 }
 
 function idOf(data: any): string | undefined {
-  const id = data?.task_id || data?.taskId || data?.id || data?.data?.task_id || data?.data?.taskId || data?.data?.id;
+  const id = data?.task_id || data?.taskId || data?.id || data?.job_id || data?.jobId
+    || data?.data?.task_id || data?.data?.taskId || data?.data?.id || data?.data?.job_id || data?.data?.jobId
+    || data?.task?.task_id || data?.task?.taskId || data?.task?.id
+    || data?.data?.task?.task_id || data?.data?.task?.taskId || data?.data?.task?.id
+    || data?.result?.task_id || data?.result?.taskId || data?.result?.id;
   return id == null ? undefined : String(id);
 }
 
@@ -257,7 +261,7 @@ export async function submitProviderLocal(
     });
   }
   const id = idOf(data);
-  if (!id) throw new Error("Respons Mureka tidak berisi task ID. Periksa respons API pada log server.");
+  if (!id) { const keys=Object.keys(data||{}).join(","); const nested=Object.keys(data?.data||data?.task||data?.result||{}).join(","); throw new Error(("Respons Mureka tidak berisi task ID. keys=["+keys+"] nested=["+nested+"]").slice(0,400)); }
   return { provider: "mureka", taskId: id };
 }
 
