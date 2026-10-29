@@ -51,7 +51,11 @@ export async function GET(request:Request){
    state.logs=[...(state.logs||[]),{at:resumedAt,stage:"planning",label:"Melanjutkan job yang tertahan",detail:"Pemeriksaan kesiapan Mureka telah diperbaiki. Job lama dilanjutkan tanpa meminta unggah ulang.",progress:12}];
    state.updatedAt=resumedAt;await saveRenderJobState(state);
   }
-  // Song projects use a bounded segment plan; stale one-shot jobs are upgraded in place.
+  // If the cinematic endpoint rejected every request shape, migrate this failed job once to the documented Lyrics Video fallback.
+  if(state.project?.sourceType==="song" && state.status==="failed" && /Invalid Request/i.test(String(state.message||"")) && state.plan?.version!=="mureka-lyrics-fallback-v1"){
+   state.project.murekaVideoApiUnavailable=true;state.project.murekaVideoFallback="lyrics-video";
+  }
+  // Song projects use a bounded segment plan; stale jobs are upgraded in place.
   const expectedMusicPlan=state.project?.sourceType==="song"?buildLongFormPlan(state.project):undefined;
   if(state.project?.sourceType==="song" && (state.plan?.version!==expectedMusicPlan?.version || state.plan?.shots?.length!==expectedMusicPlan?.shots.length || (state.status==="failed" && /Mesin mureka belum siap|engine-not-ready/i.test(String(state.message||""))))){
    const musicPlan=expectedMusicPlan!;
