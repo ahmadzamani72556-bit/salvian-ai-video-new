@@ -26,6 +26,7 @@ async function runFfmpeg(args: string[]) {
 
 export async function assembleVideo(input: {
   clips: string[];
+  audioUrl?: string;
   projectId: string;
   durationSeconds: number;
   resolution?: string;
@@ -47,14 +48,29 @@ export async function assembleVideo(input: {
     await writeFile(concatPath, `${concat}\n`, "utf8");
 
     const outputPath = join(work, "master.mp4");
-    try {
-      await runFfmpeg(["-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatPath, "-c", "copy", "-movflags", "+faststart", outputPath]);
-    } catch {
+    if (input.audioUrl) {
+      // Use the original uploaded song exactly once across the stitched visuals.
+      // Mureka's per-segment audio is discarded so no segment repeats or drifts.
+      const audioPath = join(work, "source-audio");
+      await downloadClip(input.audioUrl, audioPath);
       await runFfmpeg([
         "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatPath,
+        "-i", audioPath, "-map", "0:v:0", "-map", "1:a:0",
+        "-vf", `tpad=stop_mode=clone:stop_duration=${input.durationSeconds}`,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", outputPath,
+        "-c:a", "aac", "-b:a", "192k", "-t", String(input.durationSeconds),
+        "-movflags", "+faststart", outputPath,
       ]);
+    } else {
+      try {
+        await runFfmpeg(["-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatPath, "-c", "copy", "-movflags", "+faststart", outputPath]);
+      } catch {
+        await runFfmpeg([
+          "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", concatPath,
+          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+          "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", outputPath,
+        ]);
+      }
     }
 
     const master = await readFile(outputPath);
