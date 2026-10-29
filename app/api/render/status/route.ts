@@ -87,7 +87,7 @@ export async function GET(request:Request){
     for(const item of submissions)state.shotRuns[item.id]=item.run;
     const sent=submissions.filter(x=>x.run.status==="running").length;
     state.provider="parallel";state.providerTaskId="parallel";state.currentShot=0;state.progress=20;
-    state.message=`${sent}/${shots.length} visual telah dikirim ke mesin; maksimal satu segmen berjalan selama pemeriksaan awal mesin.`;
+    state.message=state.project?.murekaVideoFallback==="lyrics-video"?`${sent}/${shots.length} segmen telah dikirim; memakai fallback Lyrics Video agar lagu tetap selesai.`:`${sent}/${shots.length} visual telah dikirim ke mesin; maksimal satu segmen berjalan selama pemeriksaan awal mesin.`;
     state.updatedAt=now;await saveRenderJobState(state);
     return NextResponse.json({result:publicResult(state)});
    }
@@ -138,7 +138,7 @@ export async function GET(request:Request){
     addLog(state,"audio","Semua visual selesai","Semua clip tersedia; mulai penggabungan mengikuti urutan cerita.",89);
     state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
    }
-   state.status="running";state.stage="generation";state.phase="generation";state.message=`${completed}/${shots.length} visual selesai; ${active} tugas aktif, ${Math.max(0,shots.length-completed-active)} menunggu giliran.`;
+   state.status="running";state.stage="generation";state.phase="generation";state.message=state.project?.murekaVideoFallback==="lyrics-video"?`${completed}/${shots.length} segmen Lyrics Video selesai; ${active} tugas aktif, ${Math.max(0,shots.length-completed-active)} menunggu giliran.`:`${completed}/${shots.length} visual selesai; ${active} tugas aktif, ${Math.max(0,shots.length-completed-active)} menunggu giliran.`;
    state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
   }
 
