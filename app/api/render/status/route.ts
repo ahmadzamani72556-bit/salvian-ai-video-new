@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { getRenderJobState, saveRenderJobState } from "../../../../lib/render-job-store";
 import { getProviderStatus, submitProvider } from "../../../../lib/video-provider-adapters";
-import { providerReady } from "../../../../lib/long-form-engine";
+import { providerReady, buildLongFormPlan } from "../../../../lib/long-form-engine";
 import { assembleVideo } from "../../../../lib/video-assembler";
 
 export const maxDuration = 300;
@@ -40,6 +40,14 @@ export async function GET(request:Request){
  const jobId=new URL(request.url).searchParams.get("taskId")?.trim()||"";if(!jobId)return NextResponse.json({error:"taskId wajib diisi."},{status:400});
  try{
   const state=await getRenderJobState(jobId);if(!state)return NextResponse.json({error:"Job produksi tidak ditemukan."},{status:404});
+  // Song projects must never enter the legacy cinematic multi-shot pipeline.
+  if(state.project?.sourceType==="song" && state.plan?.shots?.length!==1){
+   const musicPlan=buildLongFormPlan(state.project);
+   state.plan=musicPlan;state.parallelMode=false;state.shotRuns={};state.completedUrls=[];state.currentShot=0;state.providerTaskId="";state.provider="mureka";state.status="queued";state.stage="planning";state.phase="planning";state.progress=12;state.assemblyStatus=undefined;
+   state.message="Alur video musik aktif: satu tugas mengikuti seluruh durasi lagu; storyboard drama dinonaktifkan untuk proyek lagu.";
+   state.logs=[...(state.logs||[]),{at:new Date().toISOString(),stage:"planning",label:"Beralih ke alur video musik",detail:"Proyek lagu dikunci ke satu tugas full-song; pipeline multi-shot drama tidak digunakan.",progress:12}];
+   state.updatedAt=new Date().toISOString();await saveRenderJobState(state);
+  }
   const totalShots=Math.max(1,state.plan?.shots?.length||1);const now=new Date().toISOString();ensureStageRuns(state);
   if(["succeeded","failed","cancelled"].includes(state.status))return NextResponse.json({result:publicResult(state)});
 
