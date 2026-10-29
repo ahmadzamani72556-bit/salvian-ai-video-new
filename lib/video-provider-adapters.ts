@@ -262,7 +262,7 @@ export async function submitProviderLocal(
   }
   const id = idOf(data);
   const immediateUrl = usedLyricsFallback ? String(data?.url || data?.data?.url || data?.video_url || data?.data?.video_url || "") : "";
-  if (!id && immediateUrl && /^https?:\\/\\//i.test(immediateUrl)) return { provider: "mureka", taskId: "done-url:" + encodeURIComponent(immediateUrl) };
+  if (!id && immediateUrl && /^https?:\/\//i.test(immediateUrl)) return { provider: "mureka", taskId: "done-url:" + encodeURIComponent(immediateUrl) };
   if (!id) { const keys=Object.keys(data||{}).join(","); const nested=Object.keys(data?.data||data?.task||data?.result||{}).join(","); throw new Error(("Respons Mureka tidak berisi task ID. keys=["+keys+"] nested=["+nested+"]").slice(0,400)); }
   return { provider: "mureka", taskId: usedLyricsFallback ? "lyrics:" + id : id };
 }
