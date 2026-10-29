@@ -13,6 +13,7 @@ export async function POST(request:Request){
   const body=(await request.json()) as {project?:RenderProject;settings?:RenderSettings;jobId?:string};
   const inputProject=body.project,settings=body.settings;const project=inputProject?{...inputProject,script:String(inputProject.script||inputProject.sourcePrompt||inputProject.topic||"").trim()}:undefined;
   if(!project?.id||!project.title)return NextResponse.json({error:"Project render tidak valid."},{status:400});
+  if(project.sourceType!=="song")return NextResponse.json({error:"Alur drama telah dinonaktifkan permanen. Gunakan alur Lagu → Video Musik."},{status:410});
   if(!settings||settings.projectId!==project.id||settings.projectTitle!==project.title)return NextResponse.json({error:"Pengaturan render tidak cocok dengan project."},{status:400});
   if(!ALLOWED_RESOLUTIONS.has(settings.resolution)||!ALLOWED_FPS.has(settings.fps)||!ALLOWED_QUALITY.has(settings.quality)||!ALLOWED_FORMATS.has(settings.format))return NextResponse.json({error:"Pengaturan render tidak didukung."},{status:400});
   const readiness={concept:Boolean(project.script?.trim()),storyboard:Array.isArray(project.scenes)&&project.scenes.length>0,audio:Boolean(project.audio),visual:Boolean(project.visual),subtitle:Boolean(project.subtitle),timeline:Boolean(project.timeline)};
