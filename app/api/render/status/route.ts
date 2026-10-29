@@ -137,7 +137,7 @@ export async function GET(request:Request){
     state.status="failed";state.stage="generation-failed";state.phase="generation";state.message=providerFailureSummary(runs,permanentFailures);
     addLog(state,"generation","Shot gagal permanen",state.message,state.progress);state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
    }
-   if(completed===shots.length && state.stage !== "audio" && state.stage !== "assembly"){
+   if((completed===shots.length || (state.completedUrls||[]).length===shots.length) && state.stage !== "audio" && state.stage !== "assembly"){
     state.status="running";state.stage="audio";state.phase="audio";state.progress=89;state.providerTaskId="";state.provider="";startStage(state,"audio",now);
     state.message="Semua visual selesai. Salvian memulai penggabungan otomatis sesuai urutan storyboard.";
     addLog(state,"audio","Semua visual selesai","Semua clip tersedia; mulai penggabungan mengikuti urutan cerita.",89);
