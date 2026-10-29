@@ -70,6 +70,11 @@ export async function GET(request:Request){
   }
   const totalShots=Math.max(1,state.plan?.shots?.length||1);const now=new Date().toISOString();ensureStageRuns(state);
   if(["succeeded","failed","cancelled"].includes(state.status))return NextResponse.json({result:publicResult(state)});
+  if(state.assemblyStatus==="running")return NextResponse.json({result:publicResult(state)});
+  if(state.assemblyStatus==="queued"){
+   if(state.stage!=="assembly"){state.status="assembling";state.stage="assembly";state.phase="assembly";state.progress=Math.max(92,Number(state.progress)||92);state.updatedAt=new Date().toISOString();await saveRenderJobState(state);}
+   return NextResponse.json({result:publicResult(state)});
+  }
 
   // Parallel long-form pipeline: submit every storyboard shot, track each task independently,
   // preserve storyboard order, retry transient failures, and assemble only after all clips finish.
