@@ -110,7 +110,7 @@ export async function submitProviderLocal(
 ): Promise<ProviderTask> {
   if (provider !== "mureka") throw new Error("Kling dan Veo dinonaktifkan.");
   const apiKey = required("MUREKA_API_KEY", process.env.MUREKA_API_KEY);
-  const url = process.env.MUREKA_VIDEO_GENERATE_URL?.trim() || DEFAULT_GENERATE_URL;
+  const url = DEFAULT_GENERATE_URL;
   const audioUrl = String(project?.musicAsset?.url || project?.audio?.url || "").trim();
   if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) {
     throw new Error("URL lagu penuh yang dapat diakses publik tidak ditemukan. Unggah lagu terlebih dahulu.");
@@ -159,6 +159,12 @@ export async function submitProviderLocal(
     { music, video: { prompt: visualPrompt, ratio, resolution } },
     { music, video: { model, prompt: visualPrompt, ratio, resolution } },
     { music, video: { prompt: visualPrompt } },
+    { music: { url: audioUrl }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music: { url: audioUrl }, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
+    { music: { audio_url: audioUrl, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music: { audio_url: audioUrl }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music: { song_url: audioUrl, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music: { song_url: audioUrl }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
   ];
   let data: any;
   let lastError: unknown;
