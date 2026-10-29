@@ -261,12 +261,15 @@ export async function submitProviderLocal(
     });
   }
   const id = idOf(data);
+  const immediateUrl = usedLyricsFallback ? String(data?.url || data?.data?.url || data?.video_url || data?.data?.video_url || "") : "";
+  if (!id && immediateUrl && /^https?:\\/\\//i.test(immediateUrl)) return { provider: "mureka", taskId: "done-url:" + encodeURIComponent(immediateUrl) };
   if (!id) { const keys=Object.keys(data||{}).join(","); const nested=Object.keys(data?.data||data?.task||data?.result||{}).join(","); throw new Error(("Respons Mureka tidak berisi task ID. keys=["+keys+"] nested=["+nested+"]").slice(0,400)); }
-  return { provider: "mureka", taskId: id };
+  return { provider: "mureka", taskId: usedLyricsFallback ? "lyrics:" + id : id };
 }
 
 export async function getProviderStatusLocal(provider: LongFormProvider, taskId: string): Promise<ProviderStatus> {
   if (provider !== "mureka") throw new Error("Kling dan Veo dinonaktifkan.");
+  if (taskId.startsWith("done-url:")) return { status: "succeeded", outputUrl: decodeURIComponent(taskId.slice("done-url:".length)), message: "Lyrics Video selesai." };
   const apiKey = required("MUREKA_API_KEY", process.env.MUREKA_API_KEY);
   const lyricsMode = taskId.startsWith("lyrics:");
   const queryTaskId = lyricsMode ? taskId.slice("lyrics:".length) : taskId;
