@@ -22,8 +22,9 @@ async function readJson(url: string, init: RequestInit) {
   let data: any = {};
   try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
   if (!response.ok) {
-    const message = data?.error?.message || data?.error || data?.message || ("Mureka API gagal (HTTP " + response.status + ").");
-    throw new Error(String(message).slice(0, 400));
+    const message = data?.error?.message || (typeof data?.error === "string" ? data.error : "") || data?.message || ("Mureka API gagal (HTTP " + response.status + ").");
+    const trace = data?.trace_id || data?.traceId;
+    throw new Error((String(message) + (trace ? " · trace_id: " + String(trace) : "")).slice(0, 400));
   }
   return data;
 }
@@ -55,14 +56,10 @@ function findVideoUrl(value: any): string | undefined {
 }
 
 function modelAndResolution(settings: any) {
-  const requestedModel = process.env.MUREKA_VIDEO_MODEL?.trim();
+  // Let Mureka choose its compatible video model unless an explicit supported model is configured.
+  const model = process.env.MUREKA_VIDEO_MODEL?.trim() || "auto";
   const requestedResolution = String(settings?.resolution || "720p").toLowerCase();
-  const wantsHighResolution = requestedResolution === "1080p" || requestedResolution === "4k";
-  const model = requestedModel || (wantsHighResolution ? "doubao-seedance-2-0-260128" : "doubao-seedance-2-5-260628");
-  const supported = model.includes("2-5") || model.includes("mini") || model.includes("fast")
-    ? ["480p", "720p"]
-    : ["480p", "720p", "1080p", "4k"];
-  const resolution = supported.includes(requestedResolution) ? requestedResolution : (supported.includes("1080p") && wantsHighResolution ? requestedResolution : "720p");
+  const resolution = ["480p", "720p", "1080p"].includes(requestedResolution) ? requestedResolution : "720p";
   return { model, resolution };
 }
 
@@ -152,9 +149,6 @@ export async function submitProviderLocal(
     video: {
       model,
       content,
-      duration: durationSeconds,
-      execution_expires_after: 172800,
-      generate_audio: true,
       ratio: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"].includes(String(project?.ratio || "16:9"))
         ? String(project?.ratio || "16:9")
         : "16:9",
