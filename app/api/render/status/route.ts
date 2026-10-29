@@ -31,7 +31,7 @@ function providerFailureSummary(runs:any,ids:string[]){const reason=ids.map(id=>
 async function runNativeAssembly(jobId:string){
  const state=await getRenderJobState(jobId);if(!state||state.stage!=="assembly"||state.assemblyStatus!=="queued")return;
  try{const started=new Date().toISOString();state.assemblyStatus="running";state.status="assembling";state.progress=Math.max(92,Number(state.progress)||92);state.message="Salvian sedang merakit semua clip menjadi satu timeline video utuh.";startStage(state,"assembly",started);addLog(state,"assembly","Merakit timeline","Menggabungkan clip yang sudah selesai menjadi satu master video.",state.progress);state.updatedAt=started;await saveRenderJobState(state);
-  const result=await assembleVideo({clips:state.completedUrls,projectId:state.projectId,durationSeconds:state.plan.durationSeconds,resolution:state.settings?.resolution,fps:Number(String(state.settings?.fps||30).replace(/[^0-9.]/g,""))||30,format:state.settings?.format||"MP4"});
+  const result=await assembleVideo({clips:state.completedUrls,audioUrl:state.project?.musicAsset?.url,projectId:state.projectId,durationSeconds:state.plan.durationSeconds,resolution:state.settings?.resolution,fps:Number(String(state.settings?.fps||30).replace(/[^0-9.]/g,""))||30,format:state.settings?.format||"MP4"});
   const finalState=await getRenderJobState(jobId);if(!finalState)return;const done=new Date().toISOString();finishStage(finalState,"assembly",done);startStage(finalState,"finalizing",done);finishStage(finalState,"finalizing",done);finalState.assemblyStatus="succeeded";finalState.status="succeeded";finalState.stage="finalizing";finalState.phase="finalizing";finalState.progress=100;finalState.outputUrl=result.url;finalState.message="Video panjang selesai dirakit menjadi satu file final.";addLog(finalState,"finalizing","Menyiapkan video final","File master siap diputar.",100);finalState.updatedAt=done;await saveRenderJobState(finalState);
  }catch(error){const finalState=await getRenderJobState(jobId);if(!finalState)return;const done=new Date().toISOString();finishStage(finalState,"assembly",done);finalState.assemblyStatus="failed";finalState.status="failed";finalState.stage="assembly-failed";finalState.phase="assembly";finalState.progress=Math.max(92,Number(finalState.progress)||92);finalState.message=error instanceof Error?error.message:"Perakitan video final gagal.";finalState.updatedAt=done;await saveRenderJobState(finalState);}
 }
@@ -51,12 +51,13 @@ export async function GET(request:Request){
    state.logs=[...(state.logs||[]),{at:resumedAt,stage:"planning",label:"Melanjutkan job yang tertahan",detail:"Pemeriksaan kesiapan Mureka telah diperbaiki. Job lama dilanjutkan tanpa meminta unggah ulang.",progress:12}];
    state.updatedAt=resumedAt;await saveRenderJobState(state);
   }
-  // Song projects must never enter the legacy cinematic multi-shot pipeline.
-  if(state.project?.sourceType==="song" && state.plan?.shots?.length!==1){
-   const musicPlan=buildLongFormPlan(state.project);
-   state.plan=musicPlan;state.parallelMode=false;state.shotRuns={};state.completedUrls=[];state.currentShot=0;state.providerTaskId="";state.provider="mureka";state.status="queued";state.stage="planning";state.phase="planning";state.progress=12;state.assemblyStatus=undefined;
-   state.message="Alur video musik aktif: satu tugas mengikuti seluruh durasi lagu; storyboard drama dinonaktifkan untuk proyek lagu.";
-   state.logs=[...(state.logs||[]),{at:new Date().toISOString(),stage:"planning",label:"Beralih ke alur video musik",detail:"Proyek lagu dikunci ke satu tugas full-song; pipeline multi-shot drama tidak digunakan.",progress:12}];
+  // Song projects use a bounded segment plan; stale one-shot jobs are upgraded in place.
+  const expectedMusicPlan=state.project?.sourceType==="song"?buildLongFormPlan(state.project):undefined;
+  if(state.project?.sourceType==="song" && (state.plan?.shots?.length!==expectedMusicPlan?.shots.length || (state.status==="failed" && /Mesin mureka belum siap|engine-not-ready/i.test(String(state.message||""))))){
+   const musicPlan=expectedMusicPlan!;
+   state.plan=musicPlan;state.parallelMode=false;state.shotRuns={};state.completedUrls=[];state.currentShot=0;state.providerTaskId="";state.provider="mureka";state.status="queued";state.stage="planning";state.phase="planning";state.progress=12;state.assemblyStatus=undefined;state.outputUrl=undefined;
+   state.message="Alur video musik aktif: seluruh lagu dibagi menjadi segmen pendek dan dirakit otomatis menjadi satu file final.";
+   state.logs=[...(state.logs||[]),{at:new Date().toISOString(),stage:"planning",label:"Mengaktifkan segmen video musik",detail:`${musicPlan.shots.length} segmen berurutan untuk durasi lagu penuh; audio asli akan dipasang sekali pada master akhir.`,progress:12}];
    state.updatedAt=new Date().toISOString();await saveRenderJobState(state);
   }
   const totalShots=Math.max(1,state.plan?.shots?.length||1);const now=new Date().toISOString();ensureStageRuns(state);
@@ -88,7 +89,7 @@ export async function GET(request:Request){
     return NextResponse.json({result:publicResult(state)});
    }
 
-   const runs=state.shotRuns||{};let completed=0;let active=0;let permanentFailures:string[]=[];
+   const runs=state.shotRuns||{};let completed=0;let active=0;let permanentFailures:string[]=[];let slotsAvailable=Math.max(0,3-shots.filter((shot:any,index:number)=>{const id=String(shot.id||`shot-${index+1}`);return runs[id]?.status==="running"&&Boolean(runs[id]?.taskId);}).length);
    const updates=await Promise.all(shots.map(async(shot:any,index:number)=>{
     const id=String(shot.id||`shot-${index+1}`);const run=runs[id]||{};
     if(run.status==="completed"&&run.url)return {id,run,kind:"completed"};
@@ -109,15 +110,19 @@ export async function GET(request:Request){
      const attempts=Number(run.attempts)||0;
      if(isNonRetryableProviderError(String(run.error||"")))return {id,run,kind:"permanent"};
      if(attempts<3&&!isNonRetryableProviderError(String(run.error||""))){
+      if(slotsAvailable<=0)return {id,run,kind:"queued"};
+      slotsAvailable--;
       try{const task=await submitProvider(run.provider||shot.provider,shot,state.project,state.settings);return {id,run:{...run,status:"running",taskId:task.taskId,provider:run.provider||shot.provider,attempts:attempts+1,startedAt:now},kind:"active"};}
       catch(error){const nextAttempts=attempts+1;return {id,run:{...run,attempts:nextAttempts,error:error instanceof Error?error.message:"Retry pengiriman gagal.",status:"failed"},kind:nextAttempts>=3?"permanent":"failed"};}
      }
      return {id,run,kind:"permanent"};
     }
+    if(slotsAvailable<=0)return {id,run:{...run,status:"queued"},kind:"queued"};
+    slotsAvailable--;
     try{const task=await submitProvider(shot.provider,shot,state.project,state.settings);return {id,run:{...run,status:"running",taskId:task.taskId,provider:shot.provider,attempts:1,startedAt:now},kind:"active"};}
     catch(error){return {id,run:{status:"failed",provider:shot.provider,attempts:1,error:error instanceof Error?error.message:"Pengiriman shot gagal."},kind:"failed"};}
    }));
-   for(const item of updates){runs[item.id]=item.run;if(item.kind==="completed")completed++;else if(item.kind==="active")active++;else if(item.kind==="permanent")permanentFailures.push(item.id);else active++;}
+   for(const item of updates){runs[item.id]=item.run;if(item.kind==="completed")completed++;else if(item.kind==="active")active++;else if(item.kind==="permanent")permanentFailures.push(item.id);else if(item.kind!=="queued")active++;}
    state.shotRuns=runs;state.completedUrls=shots.map((shot:any,index:number)=>runs[String(shot.id||`shot-${index+1}`)]?.url).filter((url:any)=>typeof url==="string"&&url.length>0);
    state.currentShot=completed;state.progress=Math.min(88,Math.max(20,Math.round(20+(completed/Math.max(1,shots.length))*68)));
    if(permanentFailures.length){
@@ -130,7 +135,7 @@ export async function GET(request:Request){
     addLog(state,"audio","Semua visual selesai","Semua clip tersedia; mulai penggabungan mengikuti urutan cerita.",89);
     state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
    }
-   state.status="running";state.stage="generation";state.phase="generation";state.message=`${completed}/${shots.length} visual selesai; ${active} tugas masih diproses atau sedang dicoba ulang.`;
+   state.status="running";state.stage="generation";state.phase="generation";state.message=`${completed}/${shots.length} visual selesai; ${active} tugas aktif, ${Math.max(0,shots.length-completed-active)} menunggu giliran.`;
    state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
   }
 
