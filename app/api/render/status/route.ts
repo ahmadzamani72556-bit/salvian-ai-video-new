@@ -53,7 +53,7 @@ export async function GET(request:Request){
   }
   // Song projects use a bounded segment plan; stale one-shot jobs are upgraded in place.
   const expectedMusicPlan=state.project?.sourceType==="song"?buildLongFormPlan(state.project):undefined;
-  if(state.project?.sourceType==="song" && (state.plan?.shots?.length!==expectedMusicPlan?.shots.length || (state.status==="failed" && /Mesin mureka belum siap|engine-not-ready/i.test(String(state.message||""))))){
+  if(state.project?.sourceType==="song" && (state.plan?.version!==expectedMusicPlan?.version || state.plan?.shots?.length!==expectedMusicPlan?.shots.length || (state.status==="failed" && /Mesin mureka belum siap|engine-not-ready/i.test(String(state.message||""))))){
    const musicPlan=expectedMusicPlan!;
    state.plan=musicPlan;state.parallelMode=false;state.shotRuns={};state.completedUrls=[];state.currentShot=0;state.providerTaskId="";state.provider="mureka";state.status="queued";state.stage="planning";state.phase="planning";state.progress=12;state.assemblyStatus=undefined;state.outputUrl=undefined;
    state.message="Alur video musik aktif: seluruh lagu dibagi menjadi segmen pendek dan dirakit otomatis menjadi satu file final.";
