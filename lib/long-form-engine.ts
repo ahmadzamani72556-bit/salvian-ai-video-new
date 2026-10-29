@@ -58,7 +58,7 @@ export function buildLongFormPlan(project:any):LongFormPlan {
  log(logs,"planning","Produksi video musik berdurasi penuh diterima",4,"Target durasi mengikuti audio: "+durationSeconds+" detik","mureka");
  log(logs,"music-analysis","Memvalidasi lagu penuh",10,`${music.name||"Audio lagu"} · ${durationSeconds} detik`,"mureka");
  log(logs,"shot-planning","Membagi lagu menjadi segmen berurutan",16,`${shots.length} segmen maksimal 15 detik; seluruhnya akan dirakit menjadi satu video final.`,"mureka");
- return {version:"mureka-segment-v8",durationSeconds,shots,music,logs};
+ return {version:"mureka-segment-v9",durationSeconds,shots,music,logs};
 }
 export function missingProviderConfiguration(_plan:LongFormPlan){return providerReady("mureka")?[]:["mureka"];}
 export function providerEndpoint(_provider:LongFormProvider){return process.env.MUREKA_VIDEO_GENERATE_URL||"https://api.mureka.ai/v1/video/generate";}
