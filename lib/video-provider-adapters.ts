@@ -120,7 +120,9 @@ export async function submitProviderLocal(
   }
 
   const durationSeconds = Math.max(1, Math.round(Number(shot?.duration || project?.musicAsset?.durationSeconds || 0)));
-  if (!Number.isFinite(durationSeconds) || durationSeconds < 1) throw new Error("Durasi video tidak valid.");
+  if (!Number.isFinite(durationSeconds) || durationSeconds < 1 || durationSeconds > 15) throw new Error("Durasi setiap segmen Mureka harus antara 1 dan 15 detik; lagu panjang wajib dibagi otomatis.");
+  const audioStartSeconds = Math.max(0, Math.round(Number(shot?.audioStartSeconds || 0)));
+  const audioEndSeconds = Math.max(audioStartSeconds + durationSeconds, Math.round(Number(shot?.audioEndSeconds || audioStartSeconds + durationSeconds)));
 
   const { model, resolution } = modelAndResolution(settings);
   const visualPrompt = String(shot?.prompt || project?.script || project?.sourcePrompt || project?.topic || "Create a cinematic music video matching the uploaded song.").trim();
@@ -140,8 +142,8 @@ export async function submitProviderLocal(
   const payload = {
     music: {
       url: audioUrl,
-      audio_start: 0,
-      audio_end: durationSeconds * 1000,
+      audio_start: audioStartSeconds * 1000,
+      audio_end: audioEndSeconds * 1000,
       show_lyrics_subtitle: Boolean(project?.showLyricsSubtitle ?? true),
       lip_sync: Boolean(project?.lipSync ?? true),
       background: String(project?.background || "Cinematic, natural lighting, realistic performance, coherent scenes that follow the music."),
