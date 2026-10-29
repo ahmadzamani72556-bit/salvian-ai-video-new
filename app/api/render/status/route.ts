@@ -71,8 +71,11 @@ export async function GET(request:Request){
     (state as any).parallelMode=true;state.shotRuns=state.shotRuns||{};state.status="running";state.stage="generation";state.phase="generation";state.progress=20;
     state.message=`Mengirim ${shots.length} visual secara bersamaan. Hasil akan dirangkai mengikuti urutan cerita.`;
     addLog(state,"generation","Memulai render paralel",`${shots.length} shot dikirim sebagai tugas independen; penggabungan menunggu semua visual selesai.`,20);
+    let initialSlots=3;
     const submissions=await Promise.all(shots.map(async(shot:any,index:number)=>{
      const id=String(shot.id||`shot-${index+1}`);
+     if(initialSlots<=0)return {id,shot,run:{startedAt:now,attempts:0,provider:shot.provider,status:"queued"}};
+     initialSlots--;
      try{
       if(!providerReady(shot.provider))throw new Error(`Mesin ${shot.provider} belum siap.`);
       const task=await submitProvider(shot.provider,shot,state.project,state.settings);
@@ -84,7 +87,7 @@ export async function GET(request:Request){
     for(const item of submissions)state.shotRuns[item.id]=item.run;
     const sent=submissions.filter(x=>x.run.status==="running").length;
     state.provider="parallel";state.providerTaskId="parallel";state.currentShot=0;state.progress=20;
-    state.message=`${sent}/${shots.length} visual telah dikirim ke mesin. Shot berjalan bersamaan.`;
+    state.message=`${sent}/${shots.length} visual telah dikirim ke mesin; maksimal tiga segmen berjalan bersamaan.`;
     state.updatedAt=now;await saveRenderJobState(state);
     return NextResponse.json({result:publicResult(state)});
    }
