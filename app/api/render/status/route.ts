@@ -56,6 +56,9 @@ export async function GET(request:Request){
    state.project.murekaVideoApiUnavailable=true;state.project.murekaVideoFallback="lyrics-video";
   }
   // Song projects use a bounded segment plan; stale jobs are upgraded in place.
+  if(state.stage==="assembly-failed" && state.assemblyStatus==="failed" && /ffmpeg ENOENT|FFmpeg tidak tersedia/i.test(String(state.message||""))){
+   state.stage="assembly";state.phase="assembly";state.assemblyStatus="queued";state.status="assembling";state.progress=92;state.message="FFmpeg sudah diperbaiki; mencoba ulang penggabungan MP4 final.";state.updatedAt=new Date().toISOString();await saveRenderJobState(state);after(()=>runNativeAssembly(state.id));return NextResponse.json({result:publicResult(state)});
+  }
   const expectedMusicPlan=state.project?.sourceType==="song"?buildLongFormPlan(state.project):undefined;
   if(state.project?.sourceType==="song" && (state.plan?.version!==expectedMusicPlan?.version || state.plan?.shots?.length!==expectedMusicPlan?.shots.length || (state.status==="failed" && /Mesin mureka belum siap|engine-not-ready/i.test(String(state.message||""))))){
    const musicPlan=expectedMusicPlan!;
