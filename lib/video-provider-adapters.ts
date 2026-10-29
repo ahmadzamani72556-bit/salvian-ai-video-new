@@ -10,6 +10,7 @@ export type ProviderStatus = {
 const API_BASE = "https://api.mureka.ai";
 const DEFAULT_GENERATE_URL = API_BASE + "/v1/video/generate";
 const DEFAULT_QUERY_TEMPLATE = API_BASE + "/v1/video/query/{task_id}";
+const DEFAULT_SONG_QUERY_TEMPLATE = API_BASE + "/v1/song/query/{task_id}";
 
 const required = (name: string, value?: string) => {
   if (!value?.trim()) throw new Error(name + " belum dikonfigurasi di server.");
@@ -81,7 +82,7 @@ export async function submitProvider(
     });
     const id = idOf(data);
     if (!id) throw new Error("Mesin internal tidak mengembalikan task ID; job dihentikan agar tidak mengaku produksi berjalan.");
-    return { provider: "mureka", taskId: id };
+    return { provider: "mureka", taskId: usedLyricsFallback ? "lyrics:" + id : id };
   }
   return submitProviderLocal(provider, shot, project, settings);
 }
@@ -209,26 +210,50 @@ export async function submitProviderLocal(
   ];
   let data: any;
   let lastError: unknown;
-  for (let index = 0; index < variants.length; index += 1) {
-    try {
-      data = await readJson(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
-        body: JSON.stringify(variants[index]),
-      });
-      break;
-    } catch (error) {
-      lastError = error;
-      const message = error instanceof Error ? error.message : String(error);
-      // Try alternate documented field shapes only for an explicit parameter-validation response.
-      if (/HTTP 400/.test(message) && index < variants.length - 1) continue;
-      throw error;
+  let usedLyricsFallback = Boolean(project?.murekaVideoApiUnavailable);
+  if (!usedLyricsFallback) {
+    for (let index = 0; index < variants.length; index += 1) {
+      try {
+        data = await readJson(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
+          body: JSON.stringify(variants[index]),
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        // Only retry alternate request shapes after explicit parameter validation failures.
+        if (/HTTP 400/.test(message) && index < variants.length - 1) continue;
+        throw error;
+      }
     }
   }
+
   if (!data) {
-    const detail = project?.murekaUploadError ? " · upload-audio: " + String(project.murekaUploadError).slice(0, 160) : "";
-    const message = lastError instanceof Error ? lastError.message : "Mureka tidak mengembalikan respons tugas.";
-    throw new Error((message + detail).slice(0, 400));
+    const lastMessage = lastError instanceof Error ? lastError.message : "";
+    if (!uploadedAudioId) {
+      const uploadDetail = project?.murekaUploadError ? " · upload-audio: " + String(project.murekaUploadError).slice(0, 160) : "";
+      throw new Error(((lastMessage || "Mureka video request gagal.") + uploadDetail).slice(0, 400));
+    }
+    // Last-resort completion path: Mureka's documented Lyrics Video API accepts upload_audio_id
+    // and exact millisecond ranges. Mark the project so remaining segments use this path directly.
+    project.murekaVideoApiUnavailable = true;
+    project.murekaVideoFallback = "lyrics-video";
+    usedLyricsFallback = true;
+    const lyricsPayload = {
+      upload_audio_id: uploadedAudioId,
+      selection_start: audioStartSeconds * 1000,
+      selection_end: audioEndSeconds * 1000,
+      aspect_ratio: ratio,
+      layout: "layout_1",
+      title: String(project?.title || "Video Musik").slice(0, 80),
+    };
+    data = await readJson(API_BASE + "/v1/lyrics-video/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
+      body: JSON.stringify(lyricsPayload),
+    });
   }
   const id = idOf(data);
   if (!id) throw new Error("Respons Mureka tidak berisi task ID. Periksa respons API pada log server.");
@@ -238,10 +263,14 @@ export async function submitProviderLocal(
 export async function getProviderStatusLocal(provider: LongFormProvider, taskId: string): Promise<ProviderStatus> {
   if (provider !== "mureka") throw new Error("Kling dan Veo dinonaktifkan.");
   const apiKey = required("MUREKA_API_KEY", process.env.MUREKA_API_KEY);
-  const template = process.env.MUREKA_VIDEO_QUERY_URL_TEMPLATE?.trim()
-    || process.env.MUREKA_VIDEO_POLL_TEMPLATE?.trim()
-    || DEFAULT_QUERY_TEMPLATE;
-  const url = template.replace(/\{(?:taskId|task_id|id)\}/g, encodeURIComponent(taskId));
+  const lyricsMode = taskId.startsWith("lyrics:");
+  const queryTaskId = lyricsMode ? taskId.slice("lyrics:".length) : taskId;
+  const template = lyricsMode
+    ? DEFAULT_SONG_QUERY_TEMPLATE
+    : (process.env.MUREKA_VIDEO_QUERY_URL_TEMPLATE?.trim()
+      || process.env.MUREKA_VIDEO_POLL_TEMPLATE?.trim()
+      || DEFAULT_QUERY_TEMPLATE);
+  const url = template.replace(/\{(?:taskId|task_id|id)\}/g, encodeURIComponent(queryTaskId));
   const data = await readJson(url, { method: "GET", headers: { Authorization: "Bearer " + apiKey } });
   const payload = unwrap(data);
   const status = String(payload?.status || payload?.state || payload?.task_status || "").toLowerCase();
