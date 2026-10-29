@@ -137,11 +137,11 @@ export async function GET(request:Request){
     state.status="failed";state.stage="generation-failed";state.phase="generation";state.message=providerFailureSummary(runs,permanentFailures);
     addLog(state,"generation","Shot gagal permanen",state.message,state.progress);state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
    }
-   if((completed===shots.length || (state.completedUrls||[]).length===shots.length) && state.stage !== "audio" && state.stage !== "assembly"){
-    state.status="running";state.stage="audio";state.phase="audio";state.progress=89;state.providerTaskId="";state.provider="";startStage(state,"audio",now);
-    state.message="Semua visual selesai. Salvian memulai penggabungan otomatis sesuai urutan storyboard.";
-    addLog(state,"audio","Semua visual selesai","Semua clip tersedia; mulai penggabungan mengikuti urutan cerita.",89);
-    state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
+   if((completed===shots.length || (state.completedUrls||[]).length===shots.length) && state.stage !== "assembly" && state.assemblyStatus!=="succeeded"){
+    state.status="assembling";state.stage="assembly";state.phase="assembly";state.progress=92;state.providerTaskId=`native:${state.id}`;state.provider="";state.assemblyStatus="queued";startStage(state,"assembly",now);
+    state.message="Semua segmen selesai. Salvian sedang merakit satu MP4 final dan memasang audio asli.";
+    addLog(state,"assembly","Merakit video final","Menggabungkan seluruh segmen sesuai urutan dan memasang audio asli sekali.",92);
+    state.updatedAt=now;await saveRenderJobState(state);after(()=>runNativeAssembly(state.id));return NextResponse.json({result:publicResult(state)});
    }
    state.status="running";state.stage="generation";state.phase="generation";state.message=state.project?.murekaVideoFallback==="lyrics-video"?`${completed}/${shots.length} segmen Lyrics Video selesai; ${active} tugas aktif, ${Math.max(0,shots.length-completed-active)} menunggu giliran.`:`${completed}/${shots.length} visual selesai; ${active} tugas aktif, ${Math.max(0,shots.length-completed-active)} menunggu giliran.`;
    state.updatedAt=now;await saveRenderJobState(state);return NextResponse.json({result:publicResult(state)});
