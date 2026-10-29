@@ -148,8 +148,14 @@ export async function submitProviderLocal(
         body: form,
       });
       uploadedAudioId = idOf(uploadData) || String(uploadData?.file_id || uploadData?.upload_audio_id || uploadData?.data?.file_id || "");
-      if (uploadedAudioId) project.murekaUploadAudioId = uploadedAudioId;
-    } catch {
+      if (uploadedAudioId) {
+        project.murekaUploadAudioId = uploadedAudioId;
+        project.murekaUploadError = undefined;
+      } else {
+        project.murekaUploadError = "Upload audio Mureka tidak mengembalikan ID file.";
+      }
+    } catch (error) {
+      project.murekaUploadError = error instanceof Error ? error.message : String(error);
       // Direct URL variants below remain available if Mureka's file upload service is unavailable.
     }
   }
@@ -182,9 +188,13 @@ export async function submitProviderLocal(
     { music: { audio_url: audioUrl }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
     { music: { song_url: audioUrl, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
     { music: { song_url: audioUrl }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music: audioUrl, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+    { music: { url: audioUrl }, video: { content: visualPrompt, duration: durationSeconds } },
+    { music: { url: audioUrl }, video: { content: textContent } },
     ...(uploadedAudioId ? [
       { music: { upload_audio_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, content: textContent, duration: durationSeconds, ratio, resolution } },
       { music: { upload_audio_id: uploadedAudioId }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
+      { music: { upload_audio_id: uploadedAudioId }, video: { prompt: visualPrompt } },
       { music: { file_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
       { music: { audio_id: uploadedAudioId, audio_start: audioStartSeconds * 1000, audio_end: audioEndSeconds * 1000 }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
       { music: { song_id: uploadedAudioId }, video: { model, prompt: visualPrompt, duration: durationSeconds, ratio, resolution } },
@@ -208,7 +218,11 @@ export async function submitProviderLocal(
       throw error;
     }
   }
-  if (!data) throw lastError instanceof Error ? lastError : new Error("Mureka tidak mengembalikan respons tugas.");
+  if (!data) {
+    const detail = project?.murekaUploadError ? " · upload-audio: " + String(project.murekaUploadError).slice(0, 160) : "";
+    const message = lastError instanceof Error ? lastError.message : "Mureka tidak mengembalikan respons tugas.";
+    throw new Error((message + detail).slice(0, 400));
+  }
   const id = idOf(data);
   if (!id) throw new Error("Respons Mureka tidak berisi task ID. Periksa respons API pada log server.");
   return { provider: "mureka", taskId: id };
