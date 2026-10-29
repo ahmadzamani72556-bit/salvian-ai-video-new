@@ -5,7 +5,18 @@ export type MusicGuide = { url?:string; name?:string; durationSeconds?:number; b
 export type LongFormShot = { id:string; scene:number; duration:number; prompt:string; provider:LongFormProvider; referenceShotId?:string; extendFrom?:string; beatStart?:number; beatEnd?:number };
 export type LongFormPlan = { durationSeconds:number; shots:LongFormShot[]; music?:MusicGuide; logs:ProductionLog[] };
 const now=()=>new Date().toISOString(); const log=(logs:ProductionLog[],stage:LongFormStage,label:string,progress:number,detail?:string,provider?:LongFormProvider)=>logs.push({at:now(),stage,label,detail,provider,progress});
-export function providerReady(provider:LongFormProvider):boolean { if(provider!=="mureka") return false; if(process.env.VIDEO_ENGINE_INTERNAL_URL && process.env.VIDEO_ENGINE_INTERNAL_TOKEN) return true; return Boolean(process.env.MUREKA_API_KEY && process.env.MUREKA_VIDEO_GENERATE_URL && (process.env.MUREKA_VIDEO_POLL_TEMPLATE || process.env.MUREKA_VIDEO_QUERY_URL_TEMPLATE)); }
+
+/**
+ * Readiness must match the adapter's real configuration contract. Mureka's
+ * official API host and video endpoints have safe server-side defaults, so
+ * custom URL variables are optional. Only the API key (or a complete internal
+ * engine connection) is required to mark the provider ready.
+ */
+export function providerReady(provider:LongFormProvider):boolean {
+ if(provider!=="mureka") return false;
+ if(process.env.VIDEO_ENGINE_INTERNAL_URL?.trim() && process.env.VIDEO_ENGINE_INTERNAL_TOKEN?.trim()) return true;
+ return Boolean(process.env.MUREKA_API_KEY?.trim());
+}
 export function buildLongFormPlan(project:any):LongFormPlan {
  const music:MusicGuide|undefined=project?.musicAsset||undefined;
  const durationSeconds=Math.round(Number(music?.durationSeconds||project?.durationSeconds||project?.audioDurationSeconds||0));
@@ -18,5 +29,5 @@ export function buildLongFormPlan(project:any):LongFormPlan {
  log(logs,"shot-planning","Mengunci satu tugas video musik utuh",16,"Satu tugas full-song; jalur klip pendek tidak digunakan sebagai fallback.","mureka");
  return {durationSeconds,shots:[{id:"mureka-full-song",scene:1,duration:durationSeconds,prompt,provider:"mureka"}],music,logs};
 }
-export function missingProviderConfiguration(_plan:LongFormPlan){return providerReady("mureka")?[]:["mureka"]; }
-export function providerEndpoint(_provider:LongFormProvider){return process.env.MUREKA_VIDEO_GENERATE_URL||"";}
+export function missingProviderConfiguration(_plan:LongFormPlan){return providerReady("mureka")?[]:["mureka"];}
+export function providerEndpoint(_provider:LongFormProvider){return process.env.MUREKA_VIDEO_GENERATE_URL||"https://api.mureka.ai/v1/video/generate";}
