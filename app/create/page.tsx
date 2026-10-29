@@ -13,12 +13,6 @@ const modes:{id:SourceType;title:string;description:string;icon:any}[]=[
 ];
 
 type UploadedAsset=SourceAsset & {url?:string};
-const directorStages=[
-  {id:"received",label:"Sumber diterima",detail:"Cerita, lagu, atau foto sudah masuk ke produksi."},
-  {id:"director",label:"Salvian Director",detail:"Menyusun alur, scene, karakter, dan storyboard."},
-  {id:"validate",label:"Validasi storyboard",detail:"Memeriksa durasi, continuity, dan urutan kejadian."},
-  {id:"render",label:"Produksi dimulai",detail:"Storyboard dikirim ke ruang produksi untuk membuat shot."},
-];
 
 export default function CreatePage(){
  const router=useRouter();
@@ -86,21 +80,29 @@ export default function CreatePage(){
 
  async function generate(){
    if(!canGenerate)return;
-   setLoading(true);setGenerating(true);setStartedAt(Date.now());setClock(Date.now());setDirectorStage("received");
-   setMessage(mode==="song"?"Sumber lagu diterima. Director akan membaca struktur audio terlebih dahulu.":mode==="photo"?"Foto dan alur diterima. Director mulai membaca reference visual.":"Cerita diterima. Director mulai menyusun film.");
+   setLoading(true);
+   setMessage("Menyiapkan satu video musik utuh dari lagu dan foto…");
    try{
-     const nextId=projectId||createProjectId(title||prompt.slice(0,60)||"Video Musik");
-     const audioFile=assets.find(a=>a.mimeType?.startsWith("audio/"));const photoAssets=assets.filter(a=>a.mimeType?.startsWith("image/"));const musicAsset=audioFile?{name:audioFile.name,url:audioFile.url,mimeType:audioFile.mimeType,durationSeconds:audioFile.durationSeconds,syncMode:"phrase"}:undefined;
-     setDirectorStage("director");
-     setMessage(mode==="song"?"Salvian Director sedang menganalisis struktur lagu dan menyusun visual per bagian…":mode==="photo"?"Salvian Director sedang membaca foto sebagai reference dan menyusun kejadian baru…":"Salvian Director sedang menyusun scene, alur sebab-akibat, dan storyboard…");
-     const response=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceType:"song",topic:prompt||"Video musik menggunakan foto yang diunggah sebagai pemeran",sourcePrompt:prompt||"Buat video musik yang menggunakan foto-foto yang diunggah sebagai pemeran visual. Jangan menciptakan pemeran lain.",duration:musicAsset?.durationSeconds?musicAsset.durationSeconds/60:duration,style,ratio,language,voice,music:"Tanpa Musik",sourceAssets:photoAssets,musicAsset,autoStoryboard:true,autoSubtitle:false,smartPacing:true})});
-     const data=await response.json();if(!response.ok)throw new Error(data?.error||"Gagal membuat project.");
-     setDirectorStage("validate");setMessage("Storyboard diterima. Salvian memeriksa scene, durasi, continuity, audio, dan timeline…");
-     const raw=data.project||{};
-     const next:VideoProject={id:nextId,title:raw.title||title||prompt.slice(0,80)||"Video Musik",status:"Produksi",duration:musicAsset?.durationSeconds?musicAsset.durationSeconds/60:duration,sourceType:"song",sourcePrompt:prompt,sourceAssets:photoAssets,topic:prompt,style,ratio,language,voice,music:"Lagu sumber",musicAsset,script:raw.script,scenes:Array.isArray(raw.scenes)?raw.scenes:[],productionLogs:Array.isArray(raw.productionLogs)?raw.productionLogs:[],audio:raw.audio,visual:raw.visual,subtitle:raw.subtitle,timeline:raw.timeline,updatedAt:new Date().toISOString()};
-     saveActiveProject(next);setProjectId(next.id);setTitle(next.title);setDirectorStage("render");setMessage("Storyboard tervalidasi. Membuka ruang produksi live sekarang.");
-     router.push(`/render?project=${encodeURIComponent(next.title)}&projectId=${encodeURIComponent(next.id)}&from=studio`);
-   }catch(e){setMessage(e instanceof Error?e.message:"Terjadi kesalahan saat menyiapkan project.");setLoading(false);setGenerating(false);}
+     const audioFile=assets.find(a=>a.mimeType?.startsWith("audio/")&&a.url);
+     const photoAssets=assets.filter(a=>a.mimeType?.startsWith("image/")&&a.url);
+     if(!audioFile||!photoAssets.length)throw new Error("Unggah satu lagu penuh dan minimal satu foto pemeran.");
+     const nextId=projectId||createProjectId(title||prompt||"Video Musik");
+     const musicAsset={name:audioFile.name,url:audioFile.url,mimeType:audioFile.mimeType,durationSeconds:audioFile.durationSeconds,syncMode:"phrase" as const};
+     const next:VideoProject={
+       id:nextId,title:title.trim()||prompt.trim().slice(0,80)||"Video Musik",
+       status:"Draft",duration:audioFile.durationSeconds?audioFile.durationSeconds/60:duration,
+       sourceType:"song",sourcePrompt:prompt.trim(),sourceAssets:photoAssets,
+       topic:prompt.trim(),style,ratio,language,voice,music:"Lagu sumber",musicAsset,
+       script:"",scenes:[],audio:{voice:"Tanpa Narasi",music:"Lagu Sumber",language,voiceVolume:0,musicVolume:100,fadeIn:false,fadeOut:false,voiceEngine:"none",musicEngine:"uploaded",ducking:false,muted:false},
+       visual:{style,cameraMotion:"Natural",lighting:"Natural",transition:"Smooth",assetMode:"Uploaded Photos"},
+       subtitle:{enabled:false,language,style:"Clean White",position:"Bottom",size:"Medium",outline:true},
+       timeline:{pacing:"Music Sync",transitionDuration:0.5,introDuration:0,outroDuration:0},
+       autoStoryboard:false,autoSubtitle:false,smartPacing:true,updatedAt:new Date().toISOString()
+     };
+     saveActiveProject(next);setProjectId(next.id);setTitle(next.title);
+     setMessage("Sumber siap. Membuka produksi video musik utuh…");
+     router.push(`/render?project=${encodeURIComponent(next.title)}&projectId=${encodeURIComponent(next.id)}&from=music-video`);
+   }catch(e){setMessage(e instanceof Error?e.message:"Gagal menyiapkan video musik.");setLoading(false);}
  }
 
  return <main style={{minHeight:"100vh",background:"#fff",color:"#111827"}}>
@@ -122,7 +124,7 @@ export default function CreatePage(){
     <div style={{marginTop:18,padding:12,borderRadius:10,background:"#f8fafc",fontSize:13,color:"#475569"}}><strong>Durasi otomatis</strong><div style={{marginTop:4}}>Klip final mengikuti seluruh durasi lagu yang diunggah.</div></div><div style={{display:"grid",gridTemplateColumns:"1fr",gap:12,marginTop:14}}><Control label="FORMAT KLIP"><select disabled={loading} value={ratio} onChange={e=>setRatio(e.target.value)} style={inputStyle}><option value="16:9">Lanskap · 16:9</option><option value="9:16">Vertikal · 9:16</option><option value="1:1">Persegi · 1:1</option></select></Control></div>
     
     {message&&<div style={{marginTop:18,padding:13,borderRadius:10,background:"#f8fafc",border:"1px solid #e5e7eb",fontSize:13}}>{message}</div>}
-    {generating&&<section style={{marginTop:18,padding:18,border:"1px solid #dbeafe",borderRadius:14,background:"#f8fafc"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}><div><div style={eyebrow}>LIVE · PRODUKSI AWAL</div><h3 style={{margin:"5px 0 2px",fontSize:18}}>Salvian sedang bekerja</h3><p style={{margin:0,fontSize:13,color:"#64748b"}}>Setiap tahap nyata ditampilkan. Setelah storyboard selesai, layar Render melanjutkan monitor shot, continuity, audio, assembly, dan video final.</p></div><strong>{elapsedLabel}</strong></div><div style={{display:"grid",gap:8,marginTop:16}}>{directorStages.map((stage,index)=>{const current=directorStages.findIndex(s=>s.id===directorStage);const active=stage.id===directorStage;const done=current>index;return <div key={stage.id} style={{display:"grid",gridTemplateColumns:"30px 1fr auto",gap:10,alignItems:"center",padding:"11px 12px",border:"1px solid #e5e7eb",borderRadius:10,background:active?"#fff":"transparent"}}><span style={{width:30,height:30,borderRadius:99,display:"grid",placeItems:"center",background:done?"#dcfce7":active?"#111827":"#e5e7eb",color:done?"#166534":active?"#fff":"#64748b"}}>{active?<Loader2 size={15} className="spin"/>:done?<CheckCircle2 size={15}/>:<Film size={15}/>}</span><div><strong style={{fontSize:13}}>{stage.label}</strong><div style={{fontSize:12,color:"#64748b",marginTop:2}}>{stage.detail}</div></div><b style={{fontSize:11,color:done?"#15803d":active?"#111827":"#94a3b8"}}>{done?"SELESAI":active?"AKTIF":"MENUNGGU"}</b></div>})}</div></section>}
+
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginTop:22,paddingTop:18,borderTop:"1px solid #f0f0f0"}}><span style={{fontSize:12,color:"#6b7280"}}>Durasi final mengikuti lagu · MP4 · foto sebagai pemeran</span><button type="button" onClick={generate} disabled={!canGenerate||loading} style={{...buttonStyle,background:"#111827",color:"white",opacity:canGenerate&&!loading?1:.5}}>{loading?<><Loader2 size={16} className="spin"/> Memproses produksi…</>:<>Buat Video Musik <ArrowRight size={16}/></>}</button></div>
    </div>
   </section>
