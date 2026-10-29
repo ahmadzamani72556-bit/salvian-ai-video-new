@@ -120,7 +120,8 @@ export async function submitProviderLocal(
   }
 
   const durationSeconds = Math.max(1, Math.round(Number(shot?.duration || project?.musicAsset?.durationSeconds || 0)));
-  if (!Number.isFinite(durationSeconds) || durationSeconds < 1 || durationSeconds > 15) throw new Error("Durasi setiap segmen Mureka harus antara 1 dan 15 detik; lagu panjang wajib dibagi otomatis.");
+  const maxSegmentDuration = project?.murekaVideoFallback === "lyrics-video" ? 90 : 15;
+  if (!Number.isFinite(durationSeconds) || durationSeconds < 1 || durationSeconds > maxSegmentDuration) throw new Error("Durasi segmen Mureka harus antara 1 dan " + maxSegmentDuration + " detik; lagu panjang dibagi otomatis.");
   const audioStartSeconds = Math.max(0, Math.round(Number(shot?.audioStartSeconds || 0)));
   const audioEndSeconds = Math.max(audioStartSeconds + durationSeconds, Math.round(Number(shot?.audioEndSeconds || audioStartSeconds + durationSeconds)));
 
